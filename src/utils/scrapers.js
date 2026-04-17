@@ -261,13 +261,29 @@ async function scrapeAliExpress(title) {
         const getAliResults = async () => {
             return await page.evaluate(() => {
                 const data = [];
-                const cards = Array.from(document.querySelectorAll('.search-item-card-wrapper-gallery, .search-card-item, [class*="search-item-card"]'));
+                const selectors = [
+                    '.search-item-card-wrapper-gallery', 
+                    '.search-card-item', 
+                    '[class*="search-item-card"]',
+                    '[class*="list--item"]',
+                    '[class*="multi--content"]',
+                    '.multi--container--1_8keSD',
+                    'div[data-index]'
+                ];
+                
+                let cards = [];
+                selectors.forEach(s => {
+                    const found = Array.from(document.querySelectorAll(s));
+                    if (found.length > cards.length) cards = found;
+                });
+
                 const seenIds = new Set();
                 for (const card of cards) {
-                    const titleEl = card.querySelector('h3, .lw_k4, [class*="title"], [class*="Title"]');
-                    const priceEl = card.querySelector('.lw_kt, .lw_el, [class*="price"], [class*="Price"]');
+                    const titleEl = card.querySelector('h3, h1, [class*="title"], [class*="Title"]');
+                    const priceEl = card.querySelector('[class*="price"], [class*="Price"], .lw_kt, .multi--price-sale--3996963');
                     const imgEl = card.querySelector('img');
                     const linkEl = card.tagName === 'A' ? card : card.querySelector('a[href*="/item/"]');
+                    
                     if (titleEl && priceEl && linkEl) {
                         const titleText = titleEl.innerText.trim();
                         const priceText = priceEl.innerText.trim().replace(/,/g, '');
@@ -275,11 +291,12 @@ async function scrapeAliExpress(title) {
                         const url = linkEl.href.startsWith('http') ? linkEl.href : 'https:' + linkEl.getAttribute('href');
                         const itemIdMatch = url.match(/\/item\/(\d+)\.html/);
                         const itemId = itemIdMatch ? itemIdMatch[1] : url;
-                        if (m && titleText && titleText.length > 5 && !seenIds.has(itemId)) {
+
+                        if (m && titleText.length > 5 && !seenIds.has(itemId)) {
                             seenIds.add(itemId);
                             let priceVal = parseFloat(m[0]);
                             if (priceText.includes('PKR') || priceVal > 500) { priceVal = parseFloat((priceVal / 280).toFixed(2)); }
-                            data.push({ title: titleText, price: priceVal, image: imgEl ? (imgEl.src || imgEl.getAttribute('data-src')) : "", url: url });
+                            data.push({ title: titleText, price: priceVal, image: imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('src')) : "", url: url });
                         }
                     }
                 }
@@ -288,9 +305,17 @@ async function scrapeAliExpress(title) {
         };
 
         let results = await getAliResults();
-        console.log(`[AliExpress] Items found: ${results.length}`);
+        console.log(`[AliExpress] Initial check found: ${results.length} items`);
         
         if (results.length === 0) {
+            const pageData = await page.evaluate(() => ({
+                title: document.title,
+                bodySnippet: document.body.innerText.substring(0, 500),
+                cardCount: document.querySelectorAll('div').length
+            }));
+            console.log(`[AliExpress] DEBUG - Page Title: "${pageData.title}"`);
+            console.log(`[AliExpress] DEBUG - Body Snippet: ${pageData.bodySnippet.replace(/\n/g, ' ')}`);
+            
             console.log("[AliExpress] Attempting scroll and re-scan...");
             await page.evaluate(() => window.scrollBy(0, 1000));
             await new Promise(r => setTimeout(r, 4000));
