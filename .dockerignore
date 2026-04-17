@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+.git
+.gitignore
+chrome-profile*
+*.png
+*.html
+.env
