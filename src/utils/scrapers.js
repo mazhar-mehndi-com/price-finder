@@ -10,7 +10,8 @@ if (puppeteer.use && !puppeteer.pluginNames?.includes('stealth')) {
 }
 
 async function launchScraperBrowser() {
-    const chromePath = process.env.CHROME_EXECUTABLE_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL;
+    const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     
     // Use the USER_DATA_DIR from .env if available, otherwise create a temp one
     const userDataDir = process.env.USER_DATA_DIR || path.join(process.cwd(), 'chrome-profile-compare-' + Date.now());
@@ -19,18 +20,18 @@ async function launchScraperBrowser() {
     const browser = await puppeteer.launch({
         executablePath: chromePath,
         userDataDir: userDataDir,
-        headless: false,
+        headless: isCloud ? 'new' : false, // Headless in cloud, visible on local
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
             '--disable-blink-features=AutomationControlled',
             '--disable-infobars',
             '--window-size=1920,1080',
-            `--profile-directory=${process.env.CHROME_PROFILE_NAME || 'Default'}`,
-        ],
+            !isCloud ? `--profile-directory=${process.env.CHROME_PROFILE_NAME || 'Default'}` : '',
+        ].filter(Boolean),
     });
 
-    return { browser, tempDir: isTemp ? userDataDir : null };
+    return { browser, tempDir: (isTemp && !isCloud) ? userDataDir : null };
 }
 
 async function simulateHuman(page) {
