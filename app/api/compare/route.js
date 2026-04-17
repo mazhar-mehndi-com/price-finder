@@ -24,18 +24,18 @@ export async function POST(request) {
     const platforms = [
       {
         name: 'eBay',
-        items: ebayResults,
-        error: ebayResults.length === 0 ? 'No results found on eBay' : null
+        items: ebayResults || [],
+        error: (!ebayResults || ebayResults.length === 0) ? 'No results found on eBay' : null
       },
       {
         name: 'Amazon',
-        items: amazonResults,
-        error: amazonResults.length === 0 ? 'No results found on Amazon' : null
+        items: amazonResults || [],
+        error: (!amazonResults || amazonResults.length === 0) ? 'No results found on Amazon' : null
       },
       {
         name: 'AliExpress',
-        items: aliExpressResults,
-        error: aliExpressResults.length === 0 ? 'No results found on AliExpress' : null
+        items: aliExpressResults || [],
+        error: (!aliExpressResults || aliExpressResults.length === 0) ? 'No results found on AliExpress' : null
       }
     ];
 
