@@ -1,0 +1,23 @@
+{
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build",
+    "start": "next start",
+    "scraper": "node src/scraper.js",
+    "generate-bulk": "node src/bulk_generator.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
+    "axios": "^1.15.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "next": "^16.2.3",
+    "puppeteer": "^24.41.0",
+    "puppeteer-core": "^24.41.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "xlsx": "^0.18.5"
+  }
+}

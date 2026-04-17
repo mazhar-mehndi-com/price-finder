@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.next
+out
+build
+
+# Debug files
+*.log
+*.html
+*.png
+aliexpress_compare_debug.html
+amazon_debug.html
+ebay_search_debug.html
+
+# Browser Profiles (IMPORTANT: Do not upload these!)
+chrome-profile*
+chrome-profile-compare-*
+chrome-profile-temp-*
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS files
+.DS_Store
+Thumbs.db
