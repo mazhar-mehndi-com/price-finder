@@ -1,26 +1,53 @@
+import './globals.css';
+
 export const metadata = {
-  title: 'eBay Bulk Upload Generator',
-  description: 'Scrape eBay listings and generate bulk upload Excel files',
+  title: 'DealScout | Lowest Price Finder',
+  description: 'Premium real-time price comparison across eBay, Amazon, and AliExpress',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#f4f4f9' }}>
+      <body>
         <nav style={{ 
-          backgroundColor: '#fff', 
-          padding: '15px 30px', 
-          boxShadow: '0 2px 5px rgba(0,0,0,0.05)', 
+          backgroundColor: 'rgba(255, 255, 255, 0.8)', 
+          backdropFilter: 'blur(12px)',
+          padding: '16px 40px', 
+          borderBottom: '1px solid var(--border)',
           display: 'flex', 
-          gap: '20px',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '20px'
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
         }}>
-          <div style={{ fontWeight: 'bold', color: '#0064d2', fontSize: '20px', marginRight: '20px' }}>eBayTools</div>
-          <a href="/" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>eBay Scraper</a>
-          <a href="/lowest-price" style={{ textDecoration: 'none', color: '#333', fontWeight: '500' }}>Lowest Price Finder</a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+                width: '32px', 
+                height: '32px', 
+                backgroundColor: 'var(--primary)', 
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: '800',
+                fontSize: '18px'
+            }}>D</div>
+            <div style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '20px', letterSpacing: '-0.5px' }}>DealScout</div>
+          </div>
+          <div style={{ display: 'flex', gap: '32px' }}>
+            <a href="/" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px', transition: 'color 0.2s' }}>eBay Scraper</a>
+            <a href="/lowest-price" style={{ textDecoration: 'none', color: 'var(--primary)', fontWeight: '600', fontSize: '14px' }}>Price Finder</a>
+          </div>
+          <div style={{ display: 'none' }}>
+             {/* Spacing for balance on larger screens */}
+          </div>
         </nav>
-        <div style={{ padding: '20px' }}>
+        <div style={{ minHeight: 'calc(100vh - 73px)' }}>
           {children}
         </div>
       </body>
