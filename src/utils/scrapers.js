@@ -172,7 +172,7 @@ async function scrapeEbay(title) {
         console.log(`[eBay] Found ${results.length} items.`);
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
-        return results.slice(0, 20);
+        return results.slice(0, 10);
     } catch (e) {
         console.error('[eBay] Error:', e.message);
         if (browser) await browser.close();
@@ -233,7 +233,7 @@ async function scrapeAmazon(title) {
         console.log(`[Amazon] Found ${results.length} items.`);
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
-        return results.slice(0, 20);
+        return results.slice(0, 10);
     } catch (e) {
         console.error('[Amazon] Error:', e.message);
         if (browser) await browser.close();
@@ -300,7 +300,7 @@ async function scrapeAliExpress(title) {
 
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
-        return results.slice(0, 20);
+        return results.slice(0, 10);
     } catch (e) {
         console.error('[AliExpress] Error:', e.message);
         if (browser) await browser.close();

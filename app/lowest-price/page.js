@@ -287,9 +287,10 @@ export default function LowestPrice() {
                   ) : (
                     <div style={{ 
                       display: 'grid', 
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', 
-                      gap: '32px' 
+                      gridTemplateColumns: 'repeat(5, 1fr)', 
+                      gap: '20px' 
                     }}>
+
                       {p.items.map((item, iIdx) => (
                         <ItemCard key={iIdx} item={item} platformName={p.name} />
                       ))}
