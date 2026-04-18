@@ -1,12 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function MarketAnalytics() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+        <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg)' }}></div>
+    );
+  }
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -35,32 +46,37 @@ export default function MarketAnalytics() {
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#111', marginBottom: '10px' }}>eBay Market Analytics</h1>
-        <p style={{ color: '#666' }}>Analyze real-time market value and historical sold data.</p>
-      </header>
+    <div style={{ minHeight: '100vh', paddingBottom: '100px' }}>
+      <section className="hero-section">
+        <h1 className="hero-title">
+          eBay Market <span style={{ color: 'var(--primary)' }}>Analytics</span>.
+        </h1>
+        <p className="hero-subtitle">
+          Analyze real-time market value and historical sold data.
+        </p>
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '10px', maxWidth: '600px', margin: '0 auto 40px auto' }}>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Enter product (e.g. iPhone 15 Pro)..."
-          style={{ flex: 1, padding: '12px 20px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '16px' }}
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ 
-            padding: '12px 30px', borderRadius: '10px', border: 'none', 
-            backgroundColor: '#0064d2', color: 'white', fontWeight: '600', cursor: 'pointer',
-            opacity: loading ? 0.7 : 1
-          }}
-        >
-          {loading ? 'Analyzing...' : 'Analyze'}
-        </button>
-      </form>
+        <div className="search-form-container">
+          <form onSubmit={handleSearch} className="search-form">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Enter product (e.g. iPhone 15 Pro)..."
+              required
+              className="search-input"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="search-btn"
+            >
+              {loading ? 'Analyzing...' : 'Analyze'}
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
 
       {error && (
         <div style={{ padding: '20px', backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '10px', color: '#c53030', textAlign: 'center', marginBottom: '20px' }}>
@@ -133,6 +149,7 @@ export default function MarketAnalytics() {
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 }

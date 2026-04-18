@@ -63,3 +63,145 @@ body {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
+
+/* --- Responsive Layout & UI --- */
+
+.hero-section {
+  padding: 60px 20px;
+  text-align: center;
+  background: radial-gradient(circle at 50% -20%, #e7f3ff 0%, var(--bg) 50%);
+}
+
+.hero-title {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.hero-subtitle {
+  font-size: 16px;
+  color: var(--text-muted);
+  max-width: 500px;
+  margin: 0 auto 32px;
+  line-height: 1.5;
+}
+
+.search-form-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.search-form {
+  display: flex;
+  padding: 6px;
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+  gap: 6px;
+  transition: box-shadow 0.2s;
+}
+
+.search-form:focus-within {
+  box-shadow: var(--shadow-lg);
+}
+
+.search-input {
+  flex: 1;
+  padding: 10px 20px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+  outline: none;
+  min-width: 0;
+}
+
+.search-btn {
+  padding: 0 24px;
+  background-color: var(--text-main);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.search-btn:disabled {
+  background-color: #D1D5DB;
+  cursor: not-allowed;
+}
+
+.search-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.nav-container {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  padding: 16px 40px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 14px;
+  transition: color 0.2s;
+}
+
+.nav-link:hover, .nav-link.active {
+  color: var(--primary);
+}
+
+.nav-link.active {
+  font-weight: 600;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 600px) {
+  .nav-container {
+    padding: 16px 20px;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .nav-links {
+    gap: 16px;
+    justify-content: center;
+  }
+  
+  .search-form {
+    flex-direction: column;
+    padding: 10px;
+  }
+  
+  .search-btn {
+    padding: 12px;
+    width: 100%;
+  }
+
+  .hero-section {
+    padding: 40px 20px;
+  }
+}

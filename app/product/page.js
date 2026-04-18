@@ -84,18 +84,18 @@ function ProductContent() {
   if (!data) return null;
 
   return (
-    <main style={{ maxWidth: '800px', margin: '40px auto', backgroundColor: '#fff', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontFamily: 'Georgia, serif' }}>
-      <header style={{ borderBottom: '1px solid #eee', paddingBottom: '20px', marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <main style={{ maxWidth: '900px', margin: '40px auto', backgroundColor: '#fff', padding: 'clamp(20px, 5vw, 40px)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontFamily: 'Georgia, serif' }}>
+      <header style={{ borderBottom: '1px solid #eee', paddingBottom: '20px', marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
           <Link href="/" style={{ textDecoration: 'none', color: '#666', fontSize: '14px', fontFamily: 'sans-serif' }}>← Back to Search</Link>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               {copyStatus && <span style={{ color: '#28a745', fontSize: '13px', fontWeight: 'bold', fontFamily: 'sans-serif' }}>{copyStatus}</span>}
               <button onClick={copyAll} style={{ backgroundColor: '#28a745', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'sans-serif' }}>📋 Copy All</button>
           </div>
       </header>
 
       <article>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '10px' }}>
-            <h1 style={{ fontSize: '2.2rem', margin: 0, lineHeight: '1.2', color: '#111' }}>{data.Title}</h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', margin: 0, lineHeight: '1.2', color: '#111', flex: '1', minWidth: '250px' }}>{data.Title}</h1>
             <button onClick={() => copyToClipboard(data.Title, 'Title')} style={{ fontSize: '11px', padding: '4px 8px', cursor: 'pointer', fontFamily: 'sans-serif' }}>Copy</button>
           </div>
           
@@ -104,9 +104,9 @@ function ProductContent() {
 
           {data.Images && data.Images.length > 0 && (
               <div style={{ marginBottom: '40px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
                     {data.Images.map((img, i) => (
-                        <div key={i} style={{ height: '180px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9f9f9' }}>
+                        <div key={i} style={{ height: '140px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9f9f9' }}>
                             <img src={img} alt={`Gallery ${i}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                         </div>
                     ))}
@@ -123,7 +123,7 @@ function ProductContent() {
                         copyToClipboard(txt, 'Specs');
                     }} style={{ fontSize: '11px', padding: '4px 8px', cursor: 'pointer', fontFamily: 'sans-serif' }}>Copy</button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px', fontFamily: 'sans-serif' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '14px', fontFamily: 'sans-serif' }}>
                       {Object.entries(data.Specs).map(([k, v]) => (
                           <div key={k}><strong>{k}:</strong> {v}</div>
                       ))}
