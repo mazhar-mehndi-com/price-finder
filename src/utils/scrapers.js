@@ -10,7 +10,7 @@ if (puppeteer.use && !puppeteer.pluginNames?.includes('stealth')) {
 }
 
 async function launchScraperBrowser() {
-    const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL;
+    const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
     const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     
     const userDataDir = path.join(process.cwd(), 'chrome-profile-shared');
@@ -130,7 +130,7 @@ async function checkAndHandleCaptcha(page, platform) {
 
     if (isCaptcha) {
         console.log(`[!!!] BLOCK DETECTED on ${platform}. URL: ${page.url()}`);
-        const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL;
+        const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
         if (!isCloud) { try { await page.bringToFront(); } catch (e) {} }
         console.log(`[Wait] Waiting for manual captcha resolution on ${platform}...`);
         try {
