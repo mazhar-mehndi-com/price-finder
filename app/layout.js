@@ -33,6 +33,7 @@ export default function RootLayout({ children }) {
             <Link href="/" className="nav-link">eBay Scraper</Link>
             <Link href="/lowest-price" className="nav-link">Price Finder</Link>
             <Link href="/market-analytics" className="nav-link">Market Analytics</Link>
+            <Link href="/competitor-research" className="nav-link">Competitor Research</Link>
             <Link href="/scrape-post" className="nav-link">Scrape Post</Link>
           </div>
           <div style={{ display: 'none' }}>
