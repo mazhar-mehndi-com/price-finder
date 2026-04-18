@@ -1,6 +1,7 @@
 const { 
     scrapeEbay, scrapeAmazon, scrapeAliExpress, 
-    scrapeWalmart, scrapeEtsy, scrapeCostco, scrapeTemu 
+    scrapeWalmart, scrapeEtsy, scrapeCostco, scrapeTemu,
+    scrapeTarget, scrapeBestBuy
 } = require('./src/utils/scrapers');
 
 async function testAll() {
@@ -11,7 +12,9 @@ async function testAll() {
         { name: 'Walmart', fn: scrapeWalmart },
         { name: 'Etsy', fn: scrapeEtsy },
         { name: 'Costco', fn: scrapeCostco },
-        { name: 'Temu', fn: scrapeTemu }
+        { name: 'Temu', fn: scrapeTemu },
+        { name: 'Target', fn: scrapeTarget },
+        { name: 'Best Buy', fn: scrapeBestBuy }
     ];
 
     for (const p of platforms) {

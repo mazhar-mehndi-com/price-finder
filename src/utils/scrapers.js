@@ -170,7 +170,7 @@ async function getEbayToken() {
     
     if (!appId || !certId) return null;
 
-    // Detect Sandbox environment
+    // Detect environment
     const isSandbox = appId.includes('-SBX-');
     const tokenUrl = isSandbox 
         ? 'https://api.sandbox.ebay.com/identity/v1/oauth2/token' 
@@ -509,18 +509,56 @@ async function scrapeBestBuy(title) {
     const { browser } = await launchScraperBrowser();
     try {
         const page = await preparePage(browser);
-        await page.goto(`https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
-        await new Promise(r => setTimeout(r, 4000));
+        await page.goto(`https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        
+        // Wait for the main list or a common element to appear
+        try {
+            await page.waitForSelector('.sku-item-list, .list-item, .sku-item', { timeout: 15000 });
+        } catch (e) {
+            console.log('[Best Buy] Warning: Main list not found, might be empty or blocked.');
+        }
+
+        await new Promise(r => setTimeout(r, 3000));
         try { await checkAndHandleCaptcha(page, 'BestBuy'); } catch (e) {}
 
+        console.log('[Best Buy] Scrolling slowly to trigger lazy-load...');
+        // Slower auto-scroll for Best Buy's heavy scripts
+        await page.evaluate(async () => {
+            await new Promise((resolve) => {
+                let totalHeight = 0;
+                let distance = 200; // Smaller distance
+                let timer = setInterval(() => {
+                    let scrollHeight = document.body.scrollHeight;
+                    window.scrollBy(0, distance);
+                    totalHeight += distance;
+                    if (totalHeight >= scrollHeight || totalHeight > 4000) {
+                        clearInterval(timer);
+                        resolve();
+                    }
+                }, 300); // More time between scrolls
+            });
+        });
+        
+        await new Promise(r => setTimeout(r, 2000));
+
         const results = await page.evaluate(() => {
-            const cards = Array.from(document.querySelectorAll('.sku-item, .list-item'));
+            const cards = Array.from(document.querySelectorAll('.sku-item, .list-item, [class*="sku-item"]'));
             return cards.map(card => {
-                const titleEl = card.querySelector('.sku-header a, .sku-title a');
-                const priceEl = card.querySelector('.priceView-customer-price span');
+                const titleEl = card.querySelector('.sku-header a, .sku-title a, h3 a');
+                const priceEl = card.querySelector('.priceView-customer-price span, [class*="price"]');
+                const imgEl = card.querySelector('.product-image, img');
+                
                 if (titleEl && priceEl) {
-                    const m = priceEl.innerText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
-                    if (m) return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: titleEl.href };
+                    const priceText = priceEl.innerText;
+                    const m = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) {
+                        return { 
+                            title: titleEl.innerText.trim(), 
+                            price: parseFloat(m[0]), 
+                            image: imgEl ? imgEl.src : "", 
+                            url: titleEl.href.startsWith('http') ? titleEl.href : 'https://www.bestbuy.com' + titleEl.getAttribute('href')
+                        };
+                    }
                 }
                 return null;
             }).filter(Boolean);
@@ -533,55 +571,269 @@ async function scrapeBestBuy(title) {
 async function fetchEbayMarketData(title) {
     const searchTerm = cleanTitle(title);
     const appId = process.env.EBAY_APP_ID?.trim();
-    if (!appId) throw new Error('eBay App ID missing');
+    const isSandbox = appId?.includes('-SBX-');
 
-    const baseUrl = 'https://svcs.ebay.com/services/search/FindingService/v1';
-    const commonParams = {
-        'SERVICE-VERSION': '1.0.0',
-        'SECURITY-APPNAME': appId,
-        'RESPONSE-DATA-FORMAT': 'JSON',
-        'keywords': searchTerm,
-        'paginationInput.entriesPerPage': 20,
-        'outputSelector': 'PictureURLLarge'
-    };
+    // OAuth token is required for the Browse API
+    const token = await getEbayToken();
+
+    const browseBaseUrl = isSandbox 
+        ? 'https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search'
+        : 'https://api.ebay.com/buy/browse/v1/item_summary/search';
+
+    const findingBaseUrl = isSandbox
+        ? 'https://svcs.sandbox.ebay.com/services/search/FindingService/v1'
+        : 'https://svcs.ebay.com/services/search/FindingService/v1';
 
     try {
-        // 1. Fetch Active Items
-        const activeRes = await axios.get(baseUrl, {
-            params: { ...commonParams, 'OPERATION-NAME': 'findItemsByKeywords' }
-        });
-        const activeItems = (activeRes.data.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || []).map(item => ({
-            title: item.title?.[0],
-            price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
-            image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
-            url: item.viewItemURL?.[0],
-            status: 'active'
-        }));
+        // 1. Fetch Active Items via Browse API (Modern, higher limits)
+        let activeItems = [];
+        if (token) {
+            try {
+                const activeRes = await axios.get(browseBaseUrl, {
+                    params: { q: searchTerm, limit: 15 },
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                activeItems = (activeRes.data.itemSummaries || []).map(item => ({
+                    title: item.title,
+                    price: parseFloat(item.price?.value),
+                    image: item.image?.imageUrl,
+                    url: item.itemWebUrl,
+                    status: 'active'
+                }));
+            } catch (e) {
+                console.error('[eBay Browse API] Error:', e.response?.data || e.message);
+            }
+        }
 
-        // 2. Fetch Sold/Completed Items
-        const soldRes = await axios.get(baseUrl, {
-            params: { ...commonParams, 'OPERATION-NAME': 'findCompletedItems', 'itemFilter(0).name': 'SoldItemsOnly', 'itemFilter(0).value': 'true' }
+        // 2. Fetch Sold Items via Finding API (Only method for historical data)
+        const soldRes = await axios.get(findingBaseUrl, {
+            params: { 
+                'OPERATION-NAME': 'findCompletedItems',
+                'SERVICE-VERSION': '1.0.0',
+                'SECURITY-APPNAME': appId,
+                'RESPONSE-DATA-FORMAT': 'JSON',
+                'keywords': searchTerm,
+                'itemFilter(0).name': 'SoldItemsOnly',
+                'itemFilter(0).value': 'true',
+                'paginationInput.entriesPerPage': 10
+            }
         });
+
         const soldItems = (soldRes.data.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || []).map(item => ({
             title: item.title?.[0],
             price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
             image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
             url: item.viewItemURL?.[0],
-            endTime: item.listingInfo?.[0]?.endTime?.[0],
             status: 'sold'
         }));
 
         return { activeItems, soldItems };
     } catch (error) {
-        console.error('[eBay Analytics] Error:', error.message);
+        console.error('[eBay Analytics] Error Response:', JSON.stringify(error.response?.data, null, 2) || error.message);
         throw error;
     }
 }
 
+async function getEbayToken() {
+    const appId = process.env.EBAY_APP_ID?.trim();
+    const certId = process.env.EBAY_CERT_ID?.trim();
+    if (!appId || !certId) return null;
+    const isSandbox = appId.includes('-SBX-');
+    const tokenUrl = isSandbox ? 'https://api.sandbox.ebay.com/identity/v1/oauth2/token' : 'https://api.ebay.com/identity/v1/oauth2/token';
+    try {
+        const auth = Buffer.from(`${appId}:${certId}`).toString('base64');
+        const response = await axios.post(tokenUrl, qs.stringify({ grant_type: 'client_credentials', scope: 'https://api.ebay.com/oauth/api_scope' }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': `Basic ${auth}` } });
+        return response.data.access_token;
+    } catch (error) { return null; }
+}
+
+async function scrapeEbaySoldListings(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`[Fallback] Scraping eBay Sold Listings for: ${searchTerm}`);
+    const { browser } = await launchScraperBrowser();
+    try {
+        const page = await preparePage(browser);
+        // eBay search URL for sold items
+        const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&rt=nc&LH_Sold=1&LH_Complete=1`;
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        
+        await new Promise(r => setTimeout(r, 5000));
+        try { await checkAndHandleCaptcha(page, 'eBay'); } catch (e) {}
+        
+        await autoScroll(page);
+
+        const results = await page.evaluate(() => {
+            const cards = Array.from(document.querySelectorAll('.s-item, .s-card, .srp-results .s-item, .srp-results .s-card'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('.s-item__title, .s-card__title, [class*="title"], h3');
+                const priceEl = card.querySelector('.s-item__price, .s-card__price, [class*="price"]');
+                const sellerEl = card.querySelector('.s-item__seller-info, .su-styled-text.primary, [class*="seller"]');
+                const linkEl = card.querySelector('.s-item__link, .s-card__link, a');
+                
+                if (titleEl && priceEl) {
+                    const priceText = priceEl.innerText;
+                    const m = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) {
+                        return { 
+                            title: titleEl.innerText.trim().replace(/\nOpens in a new window or tab/i, ''), 
+                            price: parseFloat(m[0]), 
+                            seller: sellerEl ? sellerEl.innerText.split('(')[0].trim() : 'Unknown', 
+                            condition: 'Used', 
+                            shipping: 0,
+                            url: linkEl ? linkEl.href : ""
+                        };
+                    }
+                }
+                return null;
+            }).filter(i => i && i.price > 0 && !i.title.toLowerCase().includes('shop on ebay'));
+        });
+        await browser.close();
+        return results;
+    } catch (e) {
+        console.error('[eBay Sold Scraper] Error:', e.message);
+        if (browser) await browser.close();
+        return [];
+    }
+}
+
+async function fetchDeepMarketInsights(title) {
+    const searchTerm = cleanTitle(title);
+    const appId = process.env.EBAY_APP_ID?.trim();
+    const isSandbox = appId?.includes('-SBX-');
+
+    const token = await getEbayToken();
+
+    const browseBaseUrl = isSandbox 
+        ? 'https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search'
+        : 'https://api.ebay.com/buy/browse/v1/item_summary/search';
+
+    const findingBaseUrl = isSandbox
+        ? 'https://svcs.sandbox.ebay.com/services/search/FindingService/v1'
+        : 'https://svcs.ebay.com/services/search/FindingService/v1';
+
+    let activeItems = [];
+    let soldItems = [];
+
+    // 1. Fetch Active Items (Prefer Browse API for higher limits)
+    try {
+        if (token) {
+            const activeRes = await axios.get(browseBaseUrl, {
+                params: { q: searchTerm, limit: 40 },
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            activeItems = (activeRes.data.itemSummaries || []).map(item => ({
+                title: item.title,
+                price: parseFloat(item.price?.value),
+                seller: item.seller?.username || 'Unknown',
+                condition: item.condition || 'Unknown',
+                shipping: item.shippingOptions?.[0]?.shippingCost?.value || 0
+            }));
+        } else {
+            const activeRes = await axios.get(findingBaseUrl, {
+                params: { 'OPERATION-NAME': 'findItemsByKeywords', 'SERVICE-VERSION': '1.0.0', 'SECURITY-APPNAME': appId, 'RESPONSE-DATA-FORMAT': 'JSON', 'keywords': searchTerm, 'paginationInput.entriesPerPage': 40 }
+            });
+            activeItems = (activeRes.data.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || []).map(i => ({
+                title: i.title?.[0],
+                price: parseFloat(i.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
+                seller: i.sellerInfo?.[0]?.sellerUserName?.[0] || 'Unknown',
+                condition: i.condition?.[0]?.conditionDisplayName?.[0] || 'Unknown',
+                shipping: parseFloat(i.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__) || 0
+            }));
+        }
+    } catch (e) {
+        console.error('[Market Research] Active Items Fetch Error:', e.message);
+    }
+
+    // SMALL DELAY to prevent eBay Rate Limiter (Error 10001)
+    await new Promise(r => setTimeout(r, 2000));
+
+    // 2. Fetch Sold Items (Try API first, then Fallback to Scraper)
+    try {
+        const soldRes = await axios.get(findingBaseUrl, {
+            params: { 
+                'OPERATION-NAME': 'findCompletedItems', 
+                'SERVICE-VERSION': '1.0.0', 
+                'SECURITY-APPNAME': appId, 
+                'RESPONSE-DATA-FORMAT': 'JSON', 
+                'keywords': searchTerm, 
+                'itemFilter(0).name': 'SoldItemsOnly', 
+                'itemFilter(0).value': 'true',
+                'paginationInput.entriesPerPage': 40 
+            }
+        });
+        soldItems = (soldRes.data.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || []).map(i => ({
+            title: i.title?.[0],
+            price: parseFloat(i.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
+            seller: i.sellerInfo?.[0]?.sellerUserName?.[0] || 'Unknown',
+            condition: i.condition?.[0]?.conditionDisplayName?.[0] || 'Unknown',
+            shipping: parseFloat(i.shippingInfo?.[0]?.shippingServiceCost?.[0]?.__value__) || 0,
+            url: i.viewItemURL?.[0]
+        }));
+    } catch (e) {
+        console.log('[Market Research] Sold API Limit reached or error, switching to scraper fallback...');
+        soldItems = await scrapeEbaySoldListings(searchTerm);
+    }
+
+    if (activeItems.length === 0 && soldItems.length === 0) {
+        throw new Error('Could not retrieve market data. Please try again in a few minutes.');
+    }
+
+    // --- CALCULATE ANALYTICS ---
+    const activePrices = activeItems.map(i => i.price).filter(p => p > 0);
+    const soldPrices = soldItems.map(i => i.price).filter(p => p > 0);
+    
+    const avgActive = activePrices.length > 0 ? (activePrices.reduce((a,b)=>a+b,0) / activePrices.length) : 0;
+    const avgSold = soldPrices.length > 0 ? (soldPrices.reduce((a,b)=>a+b,0) / soldPrices.length) : 0;
+
+    const sellThroughRate = (activeItems.length + soldItems.length) > 0 
+        ? (soldItems.length / (activeItems.length + soldItems.length)) * 100 
+        : 0;
+
+    const sellerCounts = {};
+    soldItems.forEach(item => {
+        sellerCounts[item.seller] = (sellerCounts[item.seller] || 0) + 1;
+    });
+    const topSellers = Object.entries(sellerCounts)
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(s => ({ username: s[0], count: s[1] }));
+
+    const conditions = { New: 0, Used: 0, Other: 0 };
+    soldItems.forEach(item => {
+        const cond = (item.condition || 'Used').toLowerCase();
+        if (cond.includes('new')) conditions.New++;
+        else if (cond.includes('used') || cond.includes('pre-owned') || cond.includes('refurbished')) conditions.Used++;
+        else conditions.Other++;
+    });
+
+    const freeShippingRate = soldItems.length > 0 
+        ? (soldItems.filter(i => i.shipping === 0).length / soldItems.length) * 100 
+        : 0;
+
+    return {
+        keyword: searchTerm,
+        stats: {
+            avgActivePrice: parseFloat(avgActive.toFixed(2)),
+            avgSoldPrice: parseFloat(avgSold.toFixed(2)),
+            sellThroughRate: parseFloat(sellThroughRate.toFixed(1)),
+            freeShippingRate: parseFloat(freeShippingRate.toFixed(1)),
+            activeCount: activeItems.length,
+            soldCount: soldItems.length
+        },
+        topSellers,
+        conditions,
+        sampleSold: soldItems.slice(0, 5)
+    };
+}
+
 module.exports = { 
-    launchScraperBrowser, checkAndHandleCaptcha, getEbayToken,
+    launchScraperBrowser, checkAndHandleCaptcha, getEbayToken, preparePage,
     scrapeEbay, scrapeAmazon, scrapeAliExpress, 
     scrapeWalmart, scrapeEtsy, scrapeCostco, 
     scrapeTemu, scrapeTarget, scrapeBestBuy,
-    fetchEbayMarketData
+    fetchEbayMarketData, fetchDeepMarketInsights,
+    scrapeEbaySoldListings
 };
