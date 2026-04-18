@@ -43,7 +43,6 @@ export default function RootLayout({ children }) {
             <a href="/" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px', transition: 'color 0.2s' }}>eBay Scraper</a>
             <a href="/lowest-price" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px' }}>Price Finder</a>
             <a href="/market-analytics" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px' }}>Market Analytics</a>
-            <a href="/market-research" style={{ textDecoration: 'none', color: 'var(--primary)', fontWeight: '600', fontSize: '14px' }}>Market Research</a>
           </div>
           <div style={{ display: 'none' }}>
              {/* Spacing for balance on larger screens */}
