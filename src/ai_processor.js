@@ -1,59 +1,51 @@
-const Anthropic = require('@anthropic-ai/sdk');
-const dotenv = require('dotenv');
-const fs = require('fs');
-const path = require('path');
+const axios = require('axios');
 
-dotenv.config();
+async function generateGlobalQuery(userInput) {
+    const groqKey = process.env.GROQ_API_KEY;
+    const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    const model = process.env.OLLAMA_MODEL || 'llama3-8b-8192';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+    const systemPrompt = `You are an AI assistant designed to generate effective search queries for e-commerce platforms. Your goal is to help users find products by simulating searches with dynamic IP addresses, mimicking a global browsing experience.
+    Output ONLY the search query string. No quotes, no extra text.`;
 
-async function analyzeListings(listingsPath) {
-  try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.warn('--- AI WARNING ---');
-      console.warn('ANTHROPIC_API_KEY is missing in your .env file. Skipping AI analysis.');
-      return;
+    // 1. Try GROQ (Online/Cloud) first if key exists
+    if (groqKey && groqKey !== 'your_groq_api_key_here') {
+        console.log(`[AI] Using Groq (Cloud Llama 3.3) to optimize query...`);
+        try {
+            const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userInput }
+                ],
+                temperature: 0.3
+            }, {
+                headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' }
+            });
+
+            const query = response.data.choices[0].message.content.trim().replace(/^"|"$/g, '');
+            console.log(`[AI] Groq Optimized Query: "${query}"`);
+            return query;
+        } catch (error) {
+            console.error('[AI] Groq Error:', error.response?.data || error.message);
+        }
     }
 
-    const listings = JSON.parse(fs.readFileSync(listingsPath, 'utf8'));
-    if (listings.length === 0) {
-      console.log('No listings to analyze.');
-      return;
+    // 2. Fallback to OLLAMA (Local)
+    console.log(`[AI] Using Ollama (Local) to optimize query...`);
+    try {
+        const response = await axios.post(`${ollamaHost}/api/generate`, {
+            model: process.env.OLLAMA_MODEL || 'llama3',
+            prompt: `System: ${systemPrompt}\n\nUser: ${userInput}\n\nQuery:`,
+            stream: false
+        });
+
+        const query = response.data.response.trim().replace(/^"|"$/g, '');
+        console.log(`[AI] Ollama Optimized Query: "${query}"`);
+        return query;
+    } catch (error) {
+        return userInput; // Final fallback to original input
     }
-
-    console.log(`--- AI Analyzing ${listings.length} Listings ---`);
-    
-    // Process in batches if too many
-    const batch = listings.slice(0, 5); // Start with top 5 for demo
-    const prompt = `I have extracted my active eBay listings. Please analyze these for potential optimizations:
-    
-${JSON.stringify(batch, null, 2)}
-
-Provide a brief report including:
-1. Title optimization (missing keywords, brand names).
-2. Pricing assessment (if possible).
-3. General presentation tips.`;
-
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
-      max_tokens: 2048,
-      messages: [
-        { role: 'user', content: prompt }
-      ],
-    });
-
-    const reportPath = listingsPath.replace('.json', '_ai_report.txt');
-    fs.writeFileSync(reportPath, message.content[0].text);
-    
-    console.log(`AI Report saved to: ${reportPath}`);
-    console.log('\n--- AI ANALYSIS PREVIEW ---');
-    console.log(message.content[0].text.substring(0, 500) + '...');
-
-  } catch (error) {
-    console.error('An error occurred during AI analysis:', error);
-  }
 }
 
-module.exports = { analyzeListings };
+module.exports = { generateGlobalQuery };

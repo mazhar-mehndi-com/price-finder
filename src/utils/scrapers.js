@@ -51,6 +51,17 @@ async function preparePage(browser) {
         });
     }
 
+    // Diverse locales and headers to mimic global browsing
+    const locales = ['en-US,en;q=0.9', 'en-GB,en;q=0.8', 'en-CA,en;q=0.7'];
+    await page.setExtraHTTPHeaders({
+        'Accept-Language': locales[Math.floor(Math.random() * locales.length)],
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1'
+    });
+
     // Randomize User-Agent to look like different devices
     const userAgents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -135,20 +146,26 @@ const axios = require('axios');
 const qs = require('qs');
 
 async function getEbayToken() {
-    const appId = process.env.EBAY_APP_ID;
-    const certId = process.env.EBAY_CERT_ID;
+    const appId = process.env.EBAY_APP_ID?.trim();
+    const certId = process.env.EBAY_CERT_ID?.trim();
     
     if (!appId || !certId) return null;
 
+    // Detect Sandbox environment
+    const isSandbox = appId.includes('-SBX-');
+    const tokenUrl = isSandbox 
+        ? 'https://api.sandbox.ebay.com/identity/v1/oauth2/token' 
+        : 'https://api.ebay.com/identity/v1/oauth2/token';
+
     try {
         const auth = Buffer.from(`${appId}:${certId}`).toString('base64');
-        const response = await axios.post('https://api.ebay.com/identity/v1/oauth2/token', 
+        const response = await axios.post(tokenUrl, 
             qs.stringify({ grant_type: 'client_credentials', scope: 'https://api.ebay.com/oauth/api_scope' }),
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': `Basic ${auth}` } }
         );
         return response.data.access_token;
     } catch (error) {
-        console.error('[eBay API] Token Error:', error.response?.data || error.message);
+        console.error(`[eBay ${isSandbox ? 'Sandbox' : 'API'}] Token Error:`, error.response?.data || error.message);
         return null;
     }
 }
@@ -157,16 +174,23 @@ async function scrapeEbay(title) {
     const searchTerm = cleanTitle(title);
     console.log(`\n--- eBay Scrape Start: ${searchTerm} ---`);
 
+    const appId = process.env.EBAY_APP_ID?.trim();
+    const isSandbox = appId?.includes('-SBX-');
+
     // Try eBay API first
     const token = await getEbayToken();
     if (token) {
-        console.log('[eBay] Using official API...');
+        console.log(`[eBay] Using official ${isSandbox ? 'Sandbox' : 'Production'} API...`);
+        const searchUrl = isSandbox
+            ? 'https://svcs.sandbox.ebay.com/services/search/FindingService/v1'
+            : 'https://svcs.ebay.com/services/search/FindingService/v1';
+
         try {
-            const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
+            const response = await axios.get(searchUrl, {
                 params: {
                     'OPERATION-NAME': 'findItemsByKeywords',
                     'SERVICE-VERSION': '1.0.0',
-                    'SECURITY-APPNAME': process.env.EBAY_APP_ID,
+                    'SECURITY-APPNAME': appId,
                     'RESPONSE-DATA-FORMAT': 'JSON',
                     'keywords': searchTerm,
                     'paginationInput.entriesPerPage': 10,
@@ -325,14 +349,12 @@ async function scrapeWalmart(title) {
                 const titleEl = card.querySelector('[data-automation-id="product-title"], [class*="product-title"], h3');
                 const priceEl = card.querySelector('[data-automation-id="product-price"], [class*="price"]');
                 if (titleEl && priceEl) {
-                    // Walmart sometimes splits price: $<span>367</span><span>.98</span>
-                    // We need the full text but clean it carefully
-                    let priceText = priceEl.innerText.replace(/[^\d.]/g, '');
-                    // If multiple dots, take the first one and the rest as decimals? 
-                    // No, usually it's like $367.98. If it's 36798, maybe the dot is missing in innerText.
-                    // Let's try to find a dot or assume last two are decimals if price is huge and no dot.
+                    // Walmart fix: Extract ONLY the current price text, avoiding merged labels
+                    // Usually current price is in a specific sub-element or first part of text
+                    let priceText = priceEl.innerText.split('Was')[0].split('Options')[0];
+                    priceText = priceText.replace(/[^\d.]/g, '');
+
                     if (!priceText.includes('.') && priceText.length > 3) {
-                         // Likely missing dot, e.g. 36798 -> 367.98
                          priceText = priceText.slice(0, -2) + '.' + priceText.slice(-2);
                     }
                     const p = parseFloat(priceText);
@@ -490,7 +512,7 @@ async function scrapeBestBuy(title) {
 }
 
 module.exports = { 
-    launchScraperBrowser, checkAndHandleCaptcha, 
+    launchScraperBrowser, checkAndHandleCaptcha, getEbayToken,
     scrapeEbay, scrapeAmazon, scrapeAliExpress, 
     scrapeWalmart, scrapeEtsy, scrapeCostco, 
     scrapeTemu, scrapeTarget, scrapeBestBuy 
