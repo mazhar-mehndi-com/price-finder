@@ -205,3 +205,12 @@ body {
     padding: 40px 20px;
   }
 }
+
+.gallery-item-wrapper:hover .download-hover-btn {
+  opacity: 1 !important;
+}
+
+.download-hover-btn:hover {
+  background-color: var(--primary) !important;
+  transform: scale(1.05);
+}

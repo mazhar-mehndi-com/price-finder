@@ -67,31 +67,52 @@ export async function POST(request) {
     };
 
     const scrapeEbayListings = async (url) => {
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        // Force the search layout to avoid redirects to store pages
+        const forceSearchUrl = url + "&_ipg=200&_rss=1";
+        await page.goto(forceSearchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        
         if (await checkBlocked()) {
             const resolved = await handleCaptcha();
             if (!resolved) throw new Error("Blocked by eBay bot detection.");
         }
-        try { await page.waitForSelector('.s-item, .s-card', { timeout: 10000 }); } catch (e) {}
+
+        // Wait for items OR the "0 results" message
+        try { 
+            await page.waitForSelector('.s-item, .s-card, .srp-results, .srp-save-null-search', { timeout: 15000 }); 
+        } catch (e) {}
 
         return await page.evaluate(() => {
             const items = [];
-            const cards = Array.from(document.querySelectorAll('.s-item, .s-card'));
+            // Target the results list specifically
+            const resultsList = document.querySelector('.srp-results, .ul.srp-results') || document.body;
+            const cards = Array.from(resultsList.querySelectorAll('.s-item, .s-card, [class*="s-item"]'));
+            
             cards.forEach((card) => {
-                if (card.innerText.includes('Shop on eBay') || card.querySelector('.s-item__sep')) return;
+                // Filter out non-product cards
+                if (card.innerText.includes('Shop on eBay') || 
+                    card.querySelector('.s-item__sep') || 
+                    card.classList.contains('s-item--placeholder')) return;
+
                 const titleEl = card.querySelector('.s-item__title, .s-card__title, h3');
-                const priceEl = card.querySelector('.s-item__price, [class*="price"]');
-                const dateEl = card.querySelector('.s-item__ended-date, .POSITIVE, .s-item__caption');
+                const priceEl = card.querySelector('.s-item__price, .s-card__price, [class*="price"]');
+                const dateEl = card.querySelector('.s-item__ended-date, .POSITIVE, .s-item__caption, .s-item__title--tagblock');
                 const imgEl = card.querySelector('.s-item__image-img, img');
                 const linkEl = card.querySelector('.s-item__link, a');
                 
                 if (!titleEl || !priceEl) return;
+                
                 let title = titleEl.innerText.replace(/new listing/i, '').trim().split('\n')[0];
                 const priceText = priceEl.innerText.trim();
                 const price = parseFloat(priceText.replace(/[^\d.]/g, '')) || 0;
-                const soldDate = dateEl ? dateEl.innerText.replace(/sold\s+/i, '').trim() : "";
+                
+                // Enhanced Sold Date extraction
+                let soldDate = "";
+                if (dateEl) {
+                    soldDate = dateEl.innerText.replace(/sold/i, '').trim();
+                }
+
                 const itemUrl = linkEl ? linkEl.href : "";
-                const imageUrl = imgEl ? (imgEl.src || imgEl.getAttribute('data-src')) : "";
+                const imageUrl = imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('src')) : "";
                 
                 if (title.length > 5 && itemUrl.includes('/itm/')) {
                     items.push({ title, price, soldDate, itemUrl, imageUrl });

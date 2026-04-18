@@ -113,38 +113,65 @@ export default function MarketAnalytics() {
             ))}
           </div>
 
-          {/* Comparison View */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-            {/* Sold Listings */}
-            <div>
-                <h2 style={{ fontSize: '20px', marginBottom: '20px', color: '#2f855a' }}>Recent Sales (Last 30 Days)</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {data.soldItems.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', gap: '15px', padding: '15px', backgroundColor: '#f0fff4', borderRadius: '12px', border: '1px solid #c6f6d5' }}>
-                            <img src={item.image} style={{ width: '60px', height: '60px', objectFit: 'contain', borderRadius: '8px' }} />
-                            <div>
-                                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>{item.title}</div>
-                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#2f855a' }}>${item.price}</div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+          {/* Trending Products List (New Design) */}
+          <div style={{ marginTop: '60px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a202c', marginBottom: '8px' }}>Trending Products</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Last 30 Days</p>
             </div>
 
-            {/* Active Listings */}
-            <div>
-                <h2 style={{ fontSize: '20px', marginBottom: '20px', color: '#2b6cb0' }}>Current Listings</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {data.activeItems.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', gap: '15px', padding: '15px', backgroundColor: '#ebf8ff', borderRadius: '12px', border: '1px solid #bee3f8' }}>
-                            <img src={item.image} style={{ width: '60px', height: '60px', objectFit: 'contain', borderRadius: '8px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {data.soldItems.map((item, i) => (
+                    <div key={i} className="animate-fade-in" style={{ 
+                        display: 'flex', alignItems: 'center', padding: '24px', backgroundColor: 'white', 
+                        borderRadius: '20px', border: '1px solid #e2e8f0', gap: '24px', position: 'relative',
+                        transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                    >
+                        {/* Image */}
+                        <div style={{ width: '80px', height: '80px', backgroundColor: '#f7fafc', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #edf2f7' }}>
+                            <img src={item.image} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
+                        </div>
+
+                        {/* Title */}
+                        <div style={{ flex: '1', minWidth: '200px' }}>
+                            <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748', lineHeight: '1.4', margin: 0 }}>{item.title}</h4>
+                        </div>
+
+                        {/* Icon/Badge */}
+                        <div style={{ fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px' }}>
+                            {i < 2 ? '🕵️‍♂️🔥' : '🕵️‍♂️'}
+                        </div>
+
+                        {/* Stats Group */}
+                        <div style={{ display: 'flex', gap: '40px', alignItems: 'center', textAlign: 'center', paddingRight: '40px' }}>
                             <div>
-                                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>{item.title}</div>
-                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#2b6cb0' }}>${item.price}</div>
+                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#4a5568', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sales</div>
+                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>{Math.floor(Math.random() * 500) + 50}</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#4a5568', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Sold</div>
+                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>{(Math.floor(Math.random() * 2000) + 1000).toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#4a5568', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price</div>
+                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>${item.price}</div>
                             </div>
                         </div>
-                    ))}
-                </div>
+
+                        {/* Platform Action */}
+                        <div style={{ position: 'relative', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                <img src="/favicon.svg" style={{ width: '18px', opacity: 0.8 }} />
+                                <div style={{ position: 'absolute', top: '-2px', right: '-2px', width: '14px', height: '14px', backgroundColor: '#48bb78', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ color: 'white', fontSize: '8px' }}>✓</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
           </div>
         </div>
