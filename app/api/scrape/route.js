@@ -64,9 +64,52 @@ export async function POST(request) {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
     });
 
+    const checkBlocked = async () => {
+        try {
+            const content = await page.content();
+            const text = content.toLowerCase();
+            const isBlocked = content.includes("Robot Check") || 
+                              content.includes("captcha") || 
+                              content.includes("Pardon Our Interruption") || 
+                              text.includes("please verify you are a human") ||
+                              text.includes("security check");
+            return isBlocked;
+        } catch (e) {
+            console.error('[checkBlocked] Error:', e.message);
+            return false;
+        }
+    };
+
+    const handleCaptcha = async () => {
+        console.log(`[!!!] eBay BLOCK DETECTED. URL: ${page.url()}`);
+        // In local dev, we want to see the browser to solve it
+        console.log(`[Wait] Waiting up to 5 minutes for manual captcha resolution...`);
+        try {
+            await page.waitForFunction(() => {
+                const text = document.body.innerText.toLowerCase();
+                return !text.includes('please verify you are a human') && !document.body.innerHTML.toLowerCase().includes('captcha-delivery.com');
+            }, { timeout: 300000, polling: 2000 });
+            await new Promise(r => setTimeout(r, 2000));
+            return true;
+        } catch (e) {
+            console.log(`[Captcha] Wait failed: ${e.message}`);
+            return false;
+        }
+    };
+
     if (isItemPage) {
         // --- ITEM DETAIL PAGE SCRAPE ---
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        
+        if (await checkBlocked()) {
+            const resolved = await handleCaptcha();
+            if (!resolved) {
+                await browser.close();
+                if (tempDirToCleanup) { try { fs.rmSync(tempDirToCleanup, { recursive: true, force: true }); } catch (e) {} }
+                throw new Error("Blocked by eBay bot detection (Captcha not resolved).");
+            }
+        }
+
         try { await page.waitForSelector('h1.x-item-title__mainTitle, .x-price-primary', { timeout: 15000 }); } catch (e) { }
 
         const productData = await page.evaluate(() => {
@@ -157,18 +200,12 @@ export async function POST(request) {
         // --- SEARCH RESULTS PAGE SCRAPE ---
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
         
-        const checkBlocked = async () => {
-            const content = await page.content();
-            return content.includes("Robot Check") || content.includes("captcha") || content.includes("Pardon Our Interruption");
-        };
-
         if (await checkBlocked()) {
-            try {
-                await page.waitForSelector('.s-item__title', { timeout: 60000 });
-            } catch (e) {
+            const resolved = await handleCaptcha();
+            if (!resolved) {
                 await browser.close();
                 if (tempDirToCleanup) { try { fs.rmSync(tempDirToCleanup, { recursive: true, force: true }); } catch (e) {} }
-                throw new Error("Blocked by eBay bot detection.");
+                throw new Error("Blocked by eBay bot detection (Captcha not resolved).");
             }
         }
 
@@ -183,23 +220,37 @@ export async function POST(request) {
 
         const listings = await page.evaluate(() => {
           const items = [];
-          const resultsContainer = document.querySelector('ul.srp-results') || document.body;
-          const cards = resultsContainer.querySelectorAll('.s-item');
+          // Try multiple common container selectors
+          const cards = Array.from(document.querySelectorAll('.s-item, .s-card, [class*="s-item"], [class*="s-card"]'));
           
           cards.forEach((card) => {
-            const titleEl = card.querySelector('.s-item__title');
-            const priceEl = card.querySelector('.s-item__price');
-            const imgEl = card.querySelector('.s-item__image-img, img');
-            const linkEl = card.querySelector('a.s-item__link');
+            // Find title using multiple possible classes
+            const titleEl = card.querySelector('.s-item__title, .s-card__title, [class*="title"], h3');
+            // Find price using multiple possible classes
+            const priceEl = card.querySelector('.s-item__price, .s-card__price, [class*="price"]');
+            const imgEl = card.querySelector('.s-item__image-img, .s-card__image, img');
+            const linkEl = card.querySelector('.s-item__link, .s-card__link, a');
+            
             if (!titleEl || !priceEl) return;
-            let title = titleEl.innerText.trim().replace(/^new listing\s+/i, '');
+            
+            let title = titleEl.innerText.trim().replace(/^new listing\s+/i, '').replace(/\nOpens in a new window or tab/i, '');
             let priceText = priceEl.innerText.trim();
             let itemUrl = linkEl ? linkEl.href : "";
-            const isSponsored = card.innerText.includes('Sponsored');
-            let priceMatch = priceText.match(/\$([0-9,]+(\.[0-9]{2})?)/);
+            
+            // eBay often marks sponsored items with a specific span or text
+            const isSponsored = card.innerText.includes('Sponsored') || card.querySelector('.s-item__sep');
+            
+            // Improved price extraction
+            let priceMatch = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
             let price = priceMatch ? priceMatch[0] : priceText;
-            if (title && !title.toLowerCase().includes('shop on ebay') && !isSponsored) {
-              items.push({ title, price, img: imgEl ? (imgEl.src || imgEl.getAttribute('data-src')) : "", url: itemUrl });
+            
+            if (title && !title.toLowerCase().includes('shop on ebay') && !isSponsored && title !== "") {
+              items.push({ 
+                title, 
+                price, 
+                img: imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('src')) : "", 
+                url: itemUrl 
+              });
             }
           });
           return items;
