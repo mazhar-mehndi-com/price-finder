@@ -19,9 +19,10 @@ export default function CompetitorResearch() {
     );
   }
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!username) return;
+  const handleSearch = async (e, directUser = null) => {
+    if (e) e.preventDefault();
+    const targetUser = directUser || username;
+    if (!targetUser) return;
 
     setLoading(true);
     setError('');
@@ -31,7 +32,7 @@ export default function CompetitorResearch() {
       const response = await fetch('/api/competitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ username: targetUser.trim() }),
       });
 
       const result = await response.json();
@@ -49,10 +50,10 @@ export default function CompetitorResearch() {
     <div style={{ minHeight: '100vh', paddingBottom: '100px' }}>
       <section className="hero-section">
         <h1 className="hero-title">
-          Competitor <span style={{ color: 'var(--primary)' }}>Insights</span>.
+          Market <span style={{ color: 'var(--primary)' }}>Intelligence</span>.
         </h1>
         <p className="hero-subtitle">
-          "Snipe" any eBay seller's best performing products and sales velocity.
+          Advanced analytics and trending score for eBay sellers.
         </p>
 
         <div className="search-form-container">
@@ -70,9 +71,30 @@ export default function CompetitorResearch() {
               disabled={loading}
               className="search-btn"
             >
-              {loading ? 'Analyzing Store...' : 'Analyze Seller'}
+              {loading ? 'Analyzing...' : 'Analyze Seller'}
             </button>
           </form>
+          
+          {/* Quick Suggestions */}
+          <div style={{ marginTop: '24px', display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '5px' }}>Suggested:</span>
+            {['officialhpauctions', 'bhfo', 'eero_official', 'spigen_inc', 'anker_official'].map((s) => (
+                <button 
+                  key={s}
+                  onClick={() => { setUsername(s); handleSearch(null, s); }}
+                  disabled={loading}
+                  style={{ 
+                    padding: '6px 14px', borderRadius: '100px', border: '1px solid #e2e8f0', 
+                    backgroundColor: '#fff', fontSize: '12px', fontWeight: '600', color: 'var(--primary)',
+                    cursor: 'pointer', transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f7fafc'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                >
+                  {s}
+                </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -86,13 +108,13 @@ export default function CompetitorResearch() {
 
       {data && (
         <div className="animate-fade-in">
-          {/* Seller Stats Header */}
+          {/* Market Header */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
             {[
-                { label: 'Seller Account', value: data.username, color: 'var(--primary)' },
-                { label: 'Recent Sold Items', value: data.stats.totalRecentSales, color: 'var(--success)' },
-                { label: 'Avg. Sale Price', value: `$${data.stats.averagePrice}`, color: '#2d3748' },
-                { label: 'Unique Products', value: data.stats.uniqueProducts, color: '#666' },
+                { label: 'Seller', value: data.username, color: 'var(--primary)' },
+                { label: 'Market STR', value: data.stats.marketStr, color: 'var(--success)' },
+                { label: 'Total Sold', value: data.stats.totalSold, color: '#2d3748' },
+                { label: 'Unique Items', value: data.stats.uniqueProducts, color: '#666' },
             ].map((stat, i) => (
                 <div key={i} style={{ padding: '24px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
                     <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
@@ -101,15 +123,15 @@ export default function CompetitorResearch() {
             ))}
           </div>
 
-          {/* Money Makers List */}
+          {/* Analysis List */}
           <div style={{ marginTop: '60px' }}>
             <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-                <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a202c', marginBottom: '8px' }}>Hot Items Found</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Sorted by Sales Velocity (How many times it sold recently)</p>
+                <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a202c', marginBottom: '8px' }}>Winning Products</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>ZIK-Style Market Intelligence & Trending Analysis</p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {data.topItems.map((item, i) => (
+                {data.products.map((item, i) => (
                     <div key={i} className="animate-fade-in" style={{ 
                         display: 'flex', alignItems: 'center', padding: '24px', backgroundColor: 'white', 
                         borderRadius: '20px', border: '1px solid #e2e8f0', gap: '24px', position: 'relative',
@@ -123,34 +145,41 @@ export default function CompetitorResearch() {
                             <img src={item.imageUrl} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
                         </div>
 
-                        {/* Title & Link */}
+                        {/* Title & Insight */}
                         <div style={{ flex: '1', minWidth: '200px' }}>
                             <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748', lineHeight: '1.4', marginBottom: '8px' }}>{item.title}</h4>
-                            <a href={item.itemUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontSize: '12px', fontWeight: '700', textDecoration: 'none' }}>View on eBay →</a>
-                        </div>
-
-                        {/* Velocity Badge */}
-                        <div style={{ padding: '8px 16px', backgroundColor: item.salesCount > 1 ? '#fff5f5' : '#f7fafc', borderRadius: '12px', border: '1px solid', borderColor: item.salesCount > 1 ? '#feb2b2' : '#e2e8f0', textAlign: 'center', minWidth: '120px' }}>
-                            <div style={{ fontSize: '11px', fontWeight: '700', color: item.salesCount > 1 ? '#c53030' : '#4a5568', textTransform: 'uppercase', marginBottom: '4px' }}>Velocity</div>
-                            <div style={{ fontSize: '18px', fontWeight: '800', color: item.salesCount > 1 ? '#c53030' : '#2d3748' }}>
-                                {item.salesCount} Sales {item.salesCount > 1 && '🔥'}
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px', backgroundColor: item.score > 70 ? '#f0fff4' : '#f7fafc', color: item.score > 70 ? '#2f855a' : '#718096', border: '1px solid', borderColor: item.score > 70 ? '#c6f6d5' : '#e2e8f0' }}>
+                                    {item.trend}
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>💡 {item.insight}</span>
                             </div>
                         </div>
 
-                        {/* Stats Group */}
-                        <div style={{ display: 'flex', gap: '40px', alignItems: 'center', textAlign: 'center', paddingRight: '40px' }}>
+                        {/* Performance Metrics */}
+                        <div style={{ display: 'flex', gap: '30px', alignItems: 'center', textAlign: 'center', paddingRight: '20px' }}>
                             <div>
-                                <div style={{ fontSize: '11px', fontWeight: '700', color: '#4a5568', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price</div>
-                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#2d3748' }}>{item.price}</div>
+                                <div style={{ fontSize: '10px', fontWeight: '700', color: '#4a5568', marginBottom: '4px', textTransform: 'uppercase' }}>Sold</div>
+                                <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--success)' }}>{item.soldCount}</div>
                             </div>
                             <div>
-                                <div style={{ fontSize: '11px', fontWeight: '700', color: '#4a5568', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Sold</div>
-                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#718096' }}>{item.soldDate}</div>
+                                <div style={{ fontSize: '10px', fontWeight: '700', color: '#4a5568', marginBottom: '4px', textTransform: 'uppercase' }}>STR</div>
+                                <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--primary)' }}>{item.sellThroughRate}</div>
                             </div>
+                            <div>
+                                <div style={{ fontSize: '10px', fontWeight: '700', color: '#4a5568', marginBottom: '4px', textTransform: 'uppercase' }}>Avg Price</div>
+                                <div style={{ fontSize: '16px', fontWeight: '800', color: '#2d3748' }}>${item.avgSoldPrice}</div>
+                            </div>
+                        </div>
+
+                        {/* Trending Score */}
+                        <div style={{ textAlign: 'center', width: '80px', borderLeft: '1px solid #f0f0f0', paddingLeft: '20px' }}>
+                            <div style={{ fontSize: '10px', fontWeight: '700', color: '#718096', marginBottom: '4px', textTransform: 'uppercase' }}>Score</div>
+                            <div style={{ fontSize: '22px', fontWeight: '900', color: item.score > 80 ? '#c53030' : 'var(--text-main)' }}>{item.score}</div>
                         </div>
 
                         {/* Snipe Action */}
-                        <div style={{ paddingLeft: '20px', borderLeft: '1px solid #e2e8f0' }}>
+                        <div style={{ paddingLeft: '10px' }}>
                             <button 
                                 onClick={() => window.open(`/scrape-post?url=${encodeURIComponent(item.itemUrl)}`, '_blank')}
                                 style={{ backgroundColor: 'var(--text-main)', color: 'white', border: 'none', borderRadius: '10px', padding: '10px 16px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -165,6 +194,9 @@ export default function CompetitorResearch() {
         </div>
       )}
       </main>
+      <style>{`
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }
