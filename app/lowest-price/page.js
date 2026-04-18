@@ -34,7 +34,16 @@ export default function LowestPrice() {
   };
 
   const ItemCard = ({ item, platformName }) => {
-    const platformColor = platformName === 'eBay' ? '#0064D2' : platformName === 'Amazon' ? '#FF9900' : '#E62E04';
+    const platformColors = {
+      'eBay': '#0064D2',
+      'Amazon': '#FF9900',
+      'AliExpress': '#E62E04',
+      'Walmart': '#0071CE',
+      'Etsy': '#F1641E',
+      'Costco': '#E31837',
+      'Temu': '#FF6E00'
+    };
+    const platformColor = platformColors[platformName] || '#333';
     
     return (
       <div className="animate-fade-in" style={{ 

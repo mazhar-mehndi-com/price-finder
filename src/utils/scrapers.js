@@ -74,13 +74,19 @@ async function checkAndHandleCaptcha(page, platform) {
             return text.includes('enter the characters you see below') || text.includes('sorry, we just need to make sure you\'re not a robot');
         }
         if (plat === 'AliExpress') {
-            return !!document.querySelector('#nc_1_wrapper') || 
-                   !!document.querySelector('.nc_wrapper') ||
-                   text.includes('slide to verify') || 
-                   text.includes('captcha interception') ||
-                   title.includes('captcha') ||
-                   title.includes('interception') ||
-                   url.includes('_____tmd_____');
+            return !!document.querySelector('#nc_1_wrapper') || !!document.querySelector('.nc_wrapper') || text.includes('slide to verify') || text.includes('captcha interception') || title.includes('captcha') || url.includes('_____tmd_____');
+        }
+        if (plat === 'Walmart') {
+            return text.includes('verify you are human') || text.includes('press and hold') || title.includes('robot or human');
+        }
+        if (plat === 'Etsy') {
+            return text.includes('prove you\'re human') || text.includes('security check') || title.includes('etsy search');
+        }
+        if (plat === 'Costco') {
+            return text.includes('access denied') || text.includes('pardon our interruption') || title.includes('access denied');
+        }
+        if (plat === 'Temu') {
+            return !!document.querySelector('#captcha-container') || text.includes('slide to verify') || text.includes('captcha interception');
         }
         return false;
     }, platform);
@@ -333,4 +339,188 @@ async function scrapeAliExpress(title) {
     }
 }
 
-module.exports = { scrapeEbay, scrapeAmazon, scrapeAliExpress };
+async function scrapeWalmart(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`\n--- Walmart Scrape Start: ${searchTerm} ---`);
+    const { browser, tempDir } = await launchScraperBrowser();
+    try {
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        const searchUrl = `https://www.walmart.com/search?q=${encodeURIComponent(searchTerm)}`;
+        console.log(`[Walmart] Navigating to: ${searchUrl}`);
+        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        await checkAndHandleCaptcha(page, 'Walmart');
+        await new Promise(r => setTimeout(r, 5000));
+        const results = await page.evaluate(() => {
+            const data = [];
+            const cards = Array.from(document.querySelectorAll('[data-testid="list-view"], [data-item-id], .mb0-m'));
+            for (const card of cards) {
+                const titleEl = card.querySelector('[data-automation-id="product-title"], .f6-m');
+                const priceEl = card.querySelector('[data-automation-id="product-price"], .w_iUH7');
+                const imgEl = card.querySelector('img');
+                const linkEl = card.querySelector('a');
+                if (titleEl && priceEl && linkEl) {
+                    const priceText = priceEl.innerText.replace(/,/g, '');
+                    const m = priceText.match(/(\d+(\.\d+)?)/);
+                    if (m) {
+                        data.push({
+                            title: titleEl.innerText.trim(),
+                            price: parseFloat(m[0]),
+                            image: imgEl ? imgEl.src : "",
+                            url: linkEl.href.startsWith('http') ? linkEl.href : 'https://www.walmart.com' + linkEl.getAttribute('href')
+                        });
+                    }
+                }
+                if (data.length >= 10) break;
+            }
+            return data;
+        });
+        console.log(`[Walmart] Found ${results.length} items.`);
+        await browser.close();
+        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        return results.slice(0, 10);
+    } catch (e) {
+        console.error('[Walmart] Error:', e.message);
+        if (browser) await browser.close();
+        return [];
+    }
+}
+
+async function scrapeEtsy(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`\n--- Etsy Scrape Start: ${searchTerm} ---`);
+    const { browser, tempDir } = await launchScraperBrowser();
+    try {
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        const searchUrl = `https://www.etsy.com/search?q=${encodeURIComponent(searchTerm)}`;
+        console.log(`[Etsy] Navigating to: ${searchUrl}`);
+        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        await checkAndHandleCaptcha(page, 'Etsy');
+        await new Promise(r => setTimeout(r, 3000));
+        const results = await page.evaluate(() => {
+            const data = [];
+            const cards = Array.from(document.querySelectorAll('.wt-list-unstyled li, [data-search-results] li'));
+            for (const card of cards) {
+                const titleEl = card.querySelector('h3');
+                const priceEl = card.querySelector('.currency-value');
+                const imgEl = card.querySelector('img');
+                const linkEl = card.querySelector('a');
+                if (titleEl && priceEl && linkEl) {
+                    data.push({
+                        title: titleEl.innerText.trim(),
+                        price: parseFloat(priceEl.innerText.replace(/,/g, '')),
+                        image: imgEl ? imgEl.src : "",
+                        url: linkEl.href
+                    });
+                }
+                if (data.length >= 10) break;
+            }
+            return data;
+        });
+        console.log(`[Etsy] Found ${results.length} items.`);
+        await browser.close();
+        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        return results.slice(0, 10);
+    } catch (e) {
+        console.error('[Etsy] Error:', e.message);
+        if (browser) await browser.close();
+        return [];
+    }
+}
+
+async function scrapeCostco(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`\n--- Costco Scrape Start: ${searchTerm} ---`);
+    const { browser, tempDir } = await launchScraperBrowser();
+    try {
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        const searchUrl = `https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(searchTerm)}`;
+        console.log(`[Costco] Navigating to: ${searchUrl}`);
+        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        await checkAndHandleCaptcha(page, 'Costco');
+        await new Promise(r => setTimeout(r, 5000));
+        const results = await page.evaluate(() => {
+            const data = [];
+            const cards = Array.from(document.querySelectorAll('.product-list .product, .product-tile'));
+            for (const card of cards) {
+                const titleEl = card.querySelector('.description a');
+                const priceEl = card.querySelector('.price');
+                const imgEl = card.querySelector('img');
+                const linkEl = card.querySelector('a');
+                if (titleEl && priceEl && linkEl) {
+                    const priceText = priceEl.innerText.replace(/,/g, '');
+                    const m = priceText.match(/(\d+(\.\d+)?)/);
+                    if (m) {
+                        data.push({
+                            title: titleEl.innerText.trim(),
+                            price: parseFloat(m[0]),
+                            image: imgEl ? imgEl.src : "",
+                            url: linkEl.href
+                        });
+                    }
+                }
+                if (data.length >= 10) break;
+            }
+            return data;
+        });
+        console.log(`[Costco] Found ${results.length} items.`);
+        await browser.close();
+        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        return results.slice(0, 10);
+    } catch (e) {
+        console.error('[Costco] Error:', e.message);
+        if (browser) await browser.close();
+        return [];
+    }
+}
+
+async function scrapeTemu(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`\n--- Temu Scrape Start: ${searchTerm} ---`);
+    const { browser, tempDir } = await launchScraperBrowser();
+    try {
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        const searchUrl = `https://www.temu.com/search_result.html?search_key=${encodeURIComponent(searchTerm)}`;
+        console.log(`[Temu] Navigating to: ${searchUrl}`);
+        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        await checkAndHandleCaptcha(page, 'Temu');
+        await new Promise(r => setTimeout(r, 5000));
+        const results = await page.evaluate(() => {
+            const data = [];
+            const cards = Array.from(document.querySelectorAll('[data-goods-id], .goods-item'));
+            for (const card of cards) {
+                const titleEl = card.querySelector('[class*="title"], [class*="desc"]');
+                const priceEl = card.querySelector('[class*="price"]');
+                const imgEl = card.querySelector('img');
+                const linkEl = card.querySelector('a');
+                if (titleEl && priceEl && linkEl) {
+                    const priceText = priceEl.innerText.replace(/,/g, '');
+                    const m = priceText.match(/(\d+(\.\d+)?)/);
+                    if (m) {
+                        data.push({
+                            title: titleEl.innerText.trim(),
+                            price: parseFloat(m[0]),
+                            image: imgEl ? (imgEl.src || imgEl.getAttribute('data-src')) : "",
+                            url: linkEl.href
+                        });
+                    }
+                }
+                if (data.length >= 10) break;
+            }
+            return data;
+        });
+        console.log(`[Temu] Found ${results.length} items.`);
+        await browser.close();
+        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        return results.slice(0, 10);
+    } catch (e) {
+        console.error('[Temu] Error:', e.message);
+        if (browser) await browser.close();
+        return [];
+    }
+}
+
+module.exports = { scrapeEbay, scrapeAmazon, scrapeAliExpress, scrapeWalmart, scrapeEtsy, scrapeCostco, scrapeTemu };

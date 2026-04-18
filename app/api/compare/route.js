@@ -3,41 +3,30 @@ const { scrapeEbay, scrapeAmazon, scrapeAliExpress } = require('../../../src/uti
 
 export async function POST(request) {
   try {
-    const { title } = await request.json();
+    const { scrapeEbay, scrapeAmazon, scrapeAliExpress, scrapeWalmart, scrapeEtsy, scrapeCostco, scrapeTemu } = require('../../../src/utils/scrapers');
 
-    if (!title) {
-      return NextResponse.json({ error: 'Please provide a product title.' }, { status: 400 });
-    }
+    console.log(`Starting parallel comparison for: ${title}`);
 
-    console.log(`Starting comparison for: ${title}`);
-
-    // Execute scrapers sequentially to avoid resource contention and detection
-    console.log("Searching eBay...");
-    const ebayResults = await scrapeEbay(title);
-    
-    console.log("Searching Amazon...");
-    const amazonResults = await scrapeAmazon(title);
-    
-    console.log("Searching AliExpress...");
-    const aliExpressResults = await scrapeAliExpress(title);
+    const [ebayRes, amazonRes, aliRes, walmartRes, etsyRes, costcoRes, temuRes] = await Promise.all([
+        scrapeEbay(title).catch(e => []),
+        scrapeAmazon(title).catch(e => []),
+        scrapeAliExpress(title).catch(e => []),
+        scrapeWalmart(title).catch(e => []),
+        scrapeEtsy(title).catch(e => []),
+        scrapeCostco(title).catch(e => []),
+        scrapeTemu(title).catch(e => [])
+    ]);
 
     const platforms = [
-      {
-        name: 'eBay',
-        items: ebayResults || [],
-        error: (!ebayResults || ebayResults.length === 0) ? 'No results found on eBay' : null
-      },
-      {
-        name: 'Amazon',
-        items: amazonResults || [],
-        error: (!amazonResults || amazonResults.length === 0) ? 'No results found on Amazon' : null
-      },
-      {
-        name: 'AliExpress',
-        items: aliExpressResults || [],
-        error: (!aliExpressResults || aliExpressResults.length === 0) ? 'No results found on AliExpress' : null
-      }
+      { name: 'eBay', items: ebayRes, error: ebayRes.length === 0 ? 'No items found' : null },
+      { name: 'Amazon', items: amazonRes, error: amazonRes.length === 0 ? 'No items found' : null },
+      { name: 'AliExpress', items: aliRes, error: aliRes.length === 0 ? 'No items found' : null },
+      { name: 'Walmart', items: walmartRes, error: walmartRes.length === 0 ? 'No items found' : null },
+      { name: 'Etsy', items: etsyRes, error: etsyRes.length === 0 ? 'No items found' : null },
+      { name: 'Costco', items: costcoRes, error: costcoRes.length === 0 ? 'No items found' : null },
+      { name: 'Temu', items: temuRes, error: temuRes.length === 0 ? 'No items found' : null }
     ];
+
 
     // Calculate overall lowest price from all items
     let lowest = null;
