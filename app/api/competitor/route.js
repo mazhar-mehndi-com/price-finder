@@ -49,36 +49,82 @@ export async function POST(request) {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
     
+    await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
+
+    const checkBlocked = async () => {
+        try {
+            const content = await page.content();
+            const text = content.toLowerCase();
+            const isBlocked = content.includes("Robot Check") || 
+                              content.includes("captcha") || 
+                              content.includes("Pardon Our Interruption") || 
+                              text.includes("please verify you are a human") ||
+                              text.includes("security check");
+            return isBlocked;
+        } catch (e) {
+            console.error('[checkBlocked] Error:', e.message);
+            return false;
+        }
+    };
+
+    const handleCaptcha = async () => {
+        console.log(`[!!!] eBay BLOCK DETECTED. URL: ${page.url()}`);
+        console.log(`[Wait] Waiting up to 5 minutes for manual captcha resolution...`);
+        try {
+            await page.waitForFunction(() => {
+                const text = document.body.innerText.toLowerCase();
+                return !text.includes('please verify you are a human') && !document.body.innerHTML.toLowerCase().includes('captcha-delivery.com');
+            }, { timeout: 300000, polling: 2000 });
+            await new Promise(r => setTimeout(r, 2000));
+            return true;
+        } catch (e) {
+            console.log(`[Captcha] Wait failed: ${e.message}`);
+            return false;
+        }
+    };
+
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    // Handle bot check if necessary (reuse your established pattern)
-    const content = await page.content();
-    if (content.includes("Robot Check") || content.includes("captcha")) {
-        // In this specific tool, if blocked we return an error to avoid hanging
-        await browser.close();
-        return NextResponse.json({ error: 'Blocked by eBay bot detection. Please try again later or solve captcha in local browser.' }, { status: 403 });
+    if (await checkBlocked()) {
+        const resolved = await handleCaptcha();
+        if (!resolved) {
+            await browser.close();
+            if (tempDirToCleanup) { try { fs.rmSync(tempDirToCleanup, { recursive: true, force: true }); } catch (e) {} }
+            throw new Error("Blocked by eBay bot detection (Captcha not resolved).");
+        }
     }
+
+    // Wait for items to load
+    try {
+        await page.waitForSelector('.s-item, .s-card', { timeout: 15000 });
+    } catch (e) {}
 
     const sellerData = await page.evaluate(() => {
         const items = [];
-        const cards = Array.from(document.querySelectorAll('.s-item__wrapper, .s-item'));
+        const cards = Array.from(document.querySelectorAll('.s-item, .s-card, [class*="s-item"]'));
         
         cards.forEach((card) => {
-            const titleEl = card.querySelector('.s-item__title');
-            const priceEl = card.querySelector('.s-item__price');
-            const dateEl = card.querySelector('.s-item__title--tagblock .POSITIVE, .s-item__ended-date');
-            const imgEl = card.querySelector('.s-item__image-img');
-            const linkEl = card.querySelector('.s-item__link');
+            if (card.innerText.includes('Shop on eBay') || card.querySelector('.s-item__sep')) return;
+
+            const titleEl = card.querySelector('.s-item__title, .s-card__title, h3');
+            const priceEl = card.querySelector('.s-item__price, .s-card__price, [class*="price"]');
+            const dateEl = card.querySelector('.s-item__ended-date, .POSITIVE, .s-item__caption');
+            const imgEl = card.querySelector('.s-item__image-img, img');
+            const linkEl = card.querySelector('.s-item__link, a');
             
             if (!titleEl || !priceEl) return;
             
-            const title = titleEl.innerText.replace('New Listing', '').trim();
-            const price = priceEl.innerText.trim();
-            const soldDate = dateEl ? dateEl.innerText.replace('Sold ', '').trim() : "Recently";
-            const itemUrl = linkEl ? linkEl.href : "";
-            const imageUrl = imgEl ? (imgEl.src || imgEl.getAttribute('data-src')) : "";
+            let title = titleEl.innerText.replace(/new listing/i, '').trim();
+            title = title.split('\n')[0].trim();
             
-            if (title && !title.toLowerCase().includes('shop on ebay')) {
+            const price = priceEl.innerText.trim();
+            const soldDate = dateEl ? dateEl.innerText.replace(/sold\s+/i, '').trim() : "Recently";
+            const itemUrl = linkEl ? linkEl.href : "";
+            const imageUrl = imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('src')) : "";
+            
+            if (title.length > 5 && itemUrl.includes('/itm/')) {
                 items.push({ title, price, soldDate, itemUrl, imageUrl });
             }
         });
