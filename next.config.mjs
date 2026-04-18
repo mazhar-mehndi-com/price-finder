@@ -5,10 +5,9 @@ const nextConfig = {
   devIndicators: {
     appIsrStatus: false,
   },
-  // Place allowedDevOrigins at the top level as requested by Next.js
-  allowedDevOrigins: ['192.168.1.18'],
+  // allowedDevOrigins: ['192.168.1.18'],
   
-  turbopack: {},
+  // turbopack: {},
   
   // Ensure HMR works correctly over the network
   webpack: (config, { isServer }) => {

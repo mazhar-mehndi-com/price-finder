@@ -13,176 +13,220 @@ async function launchScraperBrowser() {
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL;
     const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     
-    // Use the USER_DATA_DIR from .env if available, otherwise create a temp one
-    const userDataDir = process.env.USER_DATA_DIR || path.join(process.cwd(), 'chrome-profile-compare-' + Date.now());
-    const isTemp = !process.env.USER_DATA_DIR;
+    const userDataDir = path.join(process.cwd(), 'chrome-profile-shared');
+    if (!fs.existsSync(userDataDir)) fs.mkdirSync(userDataDir, { recursive: true });
+
+    const args = [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-infobars',
+        '--window-size=1920,1080',
+        !isCloud ? `--profile-directory=${process.env.CHROME_PROFILE_NAME || 'Default'}` : '',
+    ];
+
+    // Support for Dynamic Proxies
+    if (process.env.PROXY_SERVER) {
+        args.push(`--proxy-server=${process.env.PROXY_SERVER}`);
+    }
 
     const browser = await puppeteer.launch({
         executablePath: chromePath,
         userDataDir: userDataDir,
-        headless: isCloud ? 'new' : false, // Headless in cloud, visible on local
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled',
-            '--disable-infobars',
-            '--window-size=1920,1080',
-            !isCloud ? `--profile-directory=${process.env.CHROME_PROFILE_NAME || 'Default'}` : '',
-        ].filter(Boolean),
+        headless: isCloud ? 'new' : false,
+        args: args.filter(Boolean),
     });
 
-    return { browser, tempDir: (isTemp && !isCloud) ? userDataDir : null };
+    return { browser, tempDir: null };
+}
+
+async function preparePage(browser) {
+    const page = await browser.newPage();
+    
+    // Proxy Authentication if needed
+    if (process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD) {
+        await page.authenticate({
+            username: process.env.PROXY_USERNAME,
+            password: process.env.PROXY_PASSWORD
+        });
+    }
+
+    // Randomize User-Agent to look like different devices
+    const userAgents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0'
+    ];
+    await page.setUserAgent(userAgents[Math.floor(Math.random() * userAgents.length)]);
+    
+    return page;
 }
 
 async function simulateHuman(page) {
     await page.setViewport({ width: 1280, height: 800 });
-    // Minimal human-like behavior
-    await page.evaluate(() => {
-        window.scrollBy(0, 300);
-    });
+    await page.evaluate(() => { window.scrollBy(0, 300); });
     await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
 }
 
 function cleanTitle(title) {
     if (!title) return "";
-    // Remove special characters that might confuse the search engine but keep spaces
-    let cleaned = title.replace(/[,\/#!$%\^&\*;:{}=\-_`~()]/g, " ");
-    // Remove extra spaces
-    cleaned = cleaned.replace(/\s{2,}/g, " ").trim();
-    
+    let cleaned = title.replace(/[,\/#!$%\^&\*;:{}=\-_`~()]/g, " ").replace(/\s{2,}/g, " ").trim();
     const words = cleaned.split(' ');
     const filtered = words.filter(w => !['for', 'with', 'and', 'the', 'a', 'to', 'in', 'on', 'at', 'by', 'an', 'of'].includes(w.toLowerCase()));
-    
-    // If it was a very long title, don't truncate it too much, but don't keep it too long either
-    if (filtered.length > 10) {
-        return filtered.slice(0, 10).join(' ');
-    }
-    return filtered.join(' ');
+    return filtered.length > 10 ? filtered.slice(0, 10).join(' ') : filtered.join(' ');
 }
 
 async function checkAndHandleCaptcha(page, platform) {
-    console.log(`[Check] Checking for blocks/captchas on ${platform}...`);
+    console.log(`[Check] Checking for blocks on ${platform}...`);
     let isCaptcha = await page.evaluate((plat) => {
         const text = document.body.innerText.toLowerCase();
         const title = document.title.toLowerCase();
         const url = window.location.href.toLowerCase();
+        const html = document.documentElement.innerHTML.toLowerCase();
         
-        if (plat === 'eBay') {
-            return text.includes('please verify you are a human') || !!document.querySelector('#captcha-container');
-        }
-        if (plat === 'Amazon') {
-            return text.includes('enter the characters you see below') || text.includes('sorry, we just need to make sure you\'re not a robot');
-        }
-        if (plat === 'AliExpress') {
-            return !!document.querySelector('#nc_1_wrapper') || !!document.querySelector('.nc_wrapper') || text.includes('slide to verify') || text.includes('captcha interception') || title.includes('captcha') || url.includes('_____tmd_____');
-        }
-        if (plat === 'Walmart') {
-            return text.includes('verify you are human') || text.includes('press and hold') || title.includes('robot or human');
-        }
-        if (plat === 'Etsy') {
-            return text.includes('prove you\'re human') || text.includes('security check') || title.includes('etsy search');
-        }
-        if (plat === 'Costco') {
-            return text.includes('access denied') || text.includes('pardon our interruption') || title.includes('access denied');
-        }
-        if (plat === 'Temu') {
-            return !!document.querySelector('#captcha-container') || text.includes('slide to verify') || text.includes('captcha interception');
-        }
+        const hasText = (t) => text.includes(t) || html.includes(t);
+        
+        if (hasText('captcha-delivery.com') || hasText('datadome') || title.includes('etsy.com') && text.length < 100) return true;
+        if (plat === 'eBay') return text.includes('please verify you are a human') || !!document.querySelector('#captcha-container');
+        if (plat === 'Amazon') return text.includes('enter the characters you see below') || text.includes('sorry, we just need to make sure you\'re not a robot');
+        if (plat === 'AliExpress') return !!document.querySelector('#nc_1_wrapper') || !!document.querySelector('.nc_wrapper') || text.includes('slide to verify') || text.includes('captcha interception') || title.includes('captcha') || url.includes('_____tmd_____');
+        if (plat === 'Walmart') return text.includes('verify you are human') || text.includes('press and hold') || title.includes('robot or human') || url.includes('blocked');
+        if (plat === 'Etsy') return text.includes('prove you\'re human') || text.includes('security check') || title.includes('etsy.com');
+        if (plat === 'Costco') return text.includes('access denied') || text.includes('pardon our interruption') || title.includes('access denied');
+        if (plat === 'Temu') return !!document.querySelector('#captcha-container') || text.includes('slide to verify');
         return false;
     }, platform);
 
     if (isCaptcha) {
         console.log(`[!!!] BLOCK DETECTED on ${platform}. URL: ${page.url()}`);
         const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL;
-        
-        if (isCloud) {
-            console.log(`[!] CRITICAL: Blocked in Cloud environment. Cannot solve manually here.`);
-        } else {
-            console.log(`[!] Please solve the challenge manually in the local browser.`);
-        }
-        
-        try { await page.bringToFront(); } catch (e) {}
-
+        if (!isCloud) { try { await page.bringToFront(); } catch (e) {} }
+        console.log(`[Wait] Waiting for manual captcha resolution on ${platform}...`);
         try {
+            // Wait for the URL to change or the body text to change (indicating success)
             await page.waitForFunction((plat) => {
                 const text = document.body.innerText.toLowerCase();
-                const title = document.title.toLowerCase();
+                const html = document.documentElement.innerHTML.toLowerCase();
                 const url = window.location.href.toLowerCase();
-
+                
+                if (html.includes('captcha-delivery.com') || html.includes('datadome')) return false;
+                if (url.includes('blocked') || url.includes('punish')) return false;
+                
                 if (plat === 'eBay') return !text.includes('please verify you are a human');
                 if (plat === 'Amazon') return !text.includes('enter the characters you see below');
-                if (plat === 'AliExpress') {
-                    const hasResults = !!document.querySelector('.search-item-card, [class*="list--item"], .multi--content--1At9C3Q');
-                    const hasCaptcha = !!document.querySelector('#nc_1_wrapper') || 
-                                     !!document.querySelector('.nc_wrapper') ||
-                                     text.includes('captcha interception') ||
-                                     title.includes('captcha') ||
-                                     url.includes('_____tmd_____');
-                    return hasResults || !hasCaptcha;
-                }
+                if (plat === 'AliExpress') return !document.querySelector('#nc_1_wrapper') && !document.querySelector('.nc_wrapper') && !url.includes('_____tmd_____');
+                if (plat === 'Walmart') return !window.location.href.includes('blocked');
                 return true;
-            }, { timeout: isCloud ? 10000 : 600000, polling: 2000 }, platform);
+            }, { timeout: isCloud ? 5000 : 300000, polling: 2000 }, platform);
             
-            console.log(`[✔] Challenge cleared on ${platform}.`);
+            // Give it a moment to settle after manual resolution
+            await new Promise(r => setTimeout(r, 2000));
             return true;
-        } catch (e) {
-            console.log(`[!] Giving up on ${platform} after block/timeout.`);
-            return false;
+        } catch (e) { 
+            console.log(`[Captcha] Wait finished or failed: ${e.message}`);
+            return false; 
         }
     }
-    console.log(`[Check] No immediate block detected on ${platform}.`);
     return false;
+}
+
+const axios = require('axios');
+const qs = require('qs');
+
+async function getEbayToken() {
+    const appId = process.env.EBAY_APP_ID;
+    const certId = process.env.EBAY_CERT_ID;
+    
+    if (!appId || !certId) return null;
+
+    try {
+        const auth = Buffer.from(`${appId}:${certId}`).toString('base64');
+        const response = await axios.post('https://api.ebay.com/identity/v1/oauth2/token', 
+            qs.stringify({ grant_type: 'client_credentials', scope: 'https://api.ebay.com/oauth/api_scope' }),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': `Basic ${auth}` } }
+        );
+        return response.data.access_token;
+    } catch (error) {
+        console.error('[eBay API] Token Error:', error.response?.data || error.message);
+        return null;
+    }
 }
 
 async function scrapeEbay(title) {
     const searchTerm = cleanTitle(title);
     console.log(`\n--- eBay Scrape Start: ${searchTerm} ---`);
+
+    // Try eBay API first
+    const token = await getEbayToken();
+    if (token) {
+        console.log('[eBay] Using official API...');
+        try {
+            const response = await axios.get('https://svcs.ebay.com/services/search/FindingService/v1', {
+                params: {
+                    'OPERATION-NAME': 'findItemsByKeywords',
+                    'SERVICE-VERSION': '1.0.0',
+                    'SECURITY-APPNAME': process.env.EBAY_APP_ID,
+                    'RESPONSE-DATA-FORMAT': 'JSON',
+                    'keywords': searchTerm,
+                    'paginationInput.entriesPerPage': 10,
+                    'outputSelector': 'PictureURLLarge'
+                }
+            });
+
+            const searchResult = response.data.findItemsByKeywordsResponse?.[0]?.searchResult?.[0];
+            if (searchResult && searchResult.item) {
+                return searchResult.item.map(item => ({
+                    title: item.title?.[0],
+                    price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
+                    image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
+                    url: item.viewItemURL?.[0]
+                })).filter(i => i.price > 0);
+            }
+        } catch (error) {
+            console.error('[eBay API] Search Error:', error.message);
+        }
+    }
+
+    // Fallback to Puppeteer Scraper
+    console.log('[eBay] Falling back to Puppeteer Scraper...');
     const { browser, tempDir } = await launchScraperBrowser();
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_ipg=60&_blrs=recall_filtering`, { waitUntil: 'load', timeout: 60000 });
         
-        const searchUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_ipg=60&_blrs=recall_filtering`;
-        console.log(`[eBay] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        
-        await checkAndHandleCaptcha(page, 'eBay');
-        
+        await new Promise(r => setTimeout(r, 4000));
+        try { await checkAndHandleCaptcha(page, 'eBay'); } catch (e) {}
+        await new Promise(r => setTimeout(r, 2000));
+
         const results = await page.evaluate(() => {
-            const cards = Array.from(document.querySelectorAll('.s-item, .s-card, .srp-results .s-item, .srp-results .s-card'));
-            const data = [];
-            for (const card of cards) {
-                const titleEl = card.querySelector('.s-item__title, .s-card__title, h3, [role="heading"]');
-                const priceEl = card.querySelector('.s-item__price, .s-card__price, .su-card-container__attributes');
+            const cards = Array.from(document.querySelectorAll('.s-item, .s-card, .srp-results .s-item, .srp-results .s-card, [class*="s-item"], [class*="s-card"]'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('.s-item__title, .s-card__title, .su-styled-text.primary, h3');
+                const priceEl = card.querySelector('.s-item__price, .s-card__price, [class*="price"]');
                 const linkEl = card.querySelector('.s-item__link, .s-card__link, a');
-                const imgEl = card.querySelector('.s-item__image-img, .s-card__image, img');
-
                 if (titleEl && priceEl && linkEl) {
-                    let titleText = titleEl.innerText.trim().replace(/^new listing\s+/i, '').replace(/\nOpens in a new window or tab/i, '');
-                    if (titleText.toLowerCase().includes('shop on ebay') || titleText === "" || titleText.toLowerCase().includes('results for')) continue;
-
-                    let priceText = priceEl.innerText.trim().replace(/,/g, '');
-                    let priceMatch = priceText.match(/(\d+(\.\d+)?)/);
+                    const priceText = priceEl.innerText;
+                    const priceMatch = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
                     if (priceMatch) {
-                        data.push({
-                            title: titleText, price: parseFloat(priceMatch[0]),
-                            image: imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('src') || "") : "",
-                            url: linkEl.href
-                        });
+                        return { 
+                            title: titleEl.innerText.trim().replace(/\nOpens in a new window or tab/i, ''), 
+                            price: parseFloat(priceMatch[0]), 
+                            image: card.querySelector('img')?.src || "", 
+                            url: linkEl.href 
+                        };
                     }
                 }
-            }
-            return data;
+                return null;
+            }).filter(i => i && i.price > 0 && !i.title.toLowerCase().includes('shop on ebay') && i.title !== "");
         });
-
-        console.log(`[eBay] Found ${results.length} items.`);
         await browser.close();
-        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[eBay] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
+    } catch (e) { 
+        console.error(`[eBay] Scraper Error: ${e.message}`);
+        if (browser) await browser.close(); 
+        return []; 
     }
 }
 
@@ -193,58 +237,35 @@ async function scrapeAmazon(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        await page.goto(`https://www.amazon.com/s?k=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
         
-        const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(searchTerm)}`;
-        console.log(`[Amazon] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        
-        await checkAndHandleCaptcha(page, 'Amazon');
+        await new Promise(r => setTimeout(r, 3000));
+        try { await checkAndHandleCaptcha(page, 'Amazon'); } catch (e) {}
         await simulateHuman(page);
         
-        let results = await page.evaluate(() => {
+        const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[data-component-type="s-search-result"]'));
-            const data = [];
-            for (const card of cards) {
-                const titleEl = card.querySelector('h2, .a-size-base-plus, .a-size-medium');
+            return cards.map(card => {
+                const titleEl = card.querySelector('h2, .a-size-base-plus, [class*="title"]');
                 const priceEl = card.querySelector('.a-price');
-                const linkEl = card.querySelector('a.a-link-normal.s-no-outline, h2 a');
-                const imgEl = card.querySelector('.s-image');
-
+                const linkEl = card.querySelector('h2 a, a.a-link-normal, [class*="link"]');
                 if (titleEl && priceEl && linkEl) {
-                    const priceOffscreen = priceEl.querySelector('.a-offscreen');
-                    const priceFullText = (priceOffscreen ? priceOffscreen.innerText : priceEl.innerText).trim();
-                    let priceValue = 0;
-                    const m = priceFullText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    const priceText = priceEl.querySelector('.a-offscreen')?.innerText || priceEl.innerText;
+                    const m = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
                     if (m) {
-                        priceValue = parseFloat(m[0]);
-                        if (priceFullText.includes('PKR') || priceValue > 500) { priceValue = parseFloat((priceValue / 280).toFixed(2)); }
-                    }
-                    if (priceValue > 0) {
-                        data.push({
-                            title: titleEl.innerText.trim(), price: priceValue,
-                            image: imgEl ? imgEl.src : "",
-                            url: linkEl.href.startsWith('http') ? linkEl.href : 'https://www.amazon.com' + linkEl.getAttribute('href')
-                        });
+                        let p = parseFloat(m[0]);
+                        // Regional conversion logic if needed
+                        if (priceText.includes('PKR') || (priceText.includes('Rs') && p > 1000)) p = parseFloat((p / 280).toFixed(2));
+                        return { title: titleEl.innerText.trim(), price: p, image: card.querySelector('.s-image')?.src || "", url: linkEl.href.startsWith('http') ? linkEl.href : 'https://www.amazon.com' + linkEl.getAttribute('href') };
                     }
                 }
-            }
-            return data;
+                return null;
+            }).filter(Boolean);
         });
-
-        if (results.length === 0) {
-            console.log(`[Amazon] Zero items. Final block check...`);
-            await checkAndHandleCaptcha(page, 'Amazon');
-        }
-
-        console.log(`[Amazon] Found ${results.length} items.`);
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[Amazon] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
-    }
+    } catch (e) { console.error(`[Amazon] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
 }
 
 async function scrapeAliExpress(title) {
@@ -254,89 +275,35 @@ async function scrapeAliExpress(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+        await page.goto(`https://www.aliexpress.com/w/wholesale-${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}.html`, { waitUntil: 'load', timeout: 60000 });
         
-        const searchUrl = `https://www.aliexpress.com/w/wholesale-${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}.html`;
-        console.log(`[AliExpress] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        await new Promise(r => setTimeout(r, 5000));
+        try { await checkAndHandleCaptcha(page, 'AliExpress'); } catch (e) {}
+        await new Promise(r => setTimeout(r, 3000));
 
-        await checkAndHandleCaptcha(page, 'AliExpress');
-        
-        console.log("[AliExpress] Stabilization wait (10s)...");
-        await new Promise(r => setTimeout(r, 10000));
-        
-        const getAliResults = async () => {
-            return await page.evaluate(() => {
-                const data = [];
-                const selectors = [
-                    '.search-item-card-wrapper-gallery', 
-                    '.search-card-item', 
-                    '[class*="search-item-card"]',
-                    '[class*="list--item"]',
-                    '[class*="multi--content"]',
-                    '.multi--container--1_8keSD',
-                    'div[data-index]'
-                ];
-                
-                let cards = [];
-                selectors.forEach(s => {
-                    const found = Array.from(document.querySelectorAll(s));
-                    if (found.length > cards.length) cards = found;
-                });
-
-                const seenIds = new Set();
-                for (const card of cards) {
-                    const titleEl = card.querySelector('h3, h1, [class*="title"], [class*="Title"]');
-                    const priceEl = card.querySelector('[class*="price"], [class*="Price"], .lw_kt, .multi--price-sale--3996963');
-                    const imgEl = card.querySelector('img');
-                    const linkEl = card.tagName === 'A' ? card : card.querySelector('a[href*="/item/"]');
-                    
-                    if (titleEl && priceEl && linkEl) {
-                        const titleText = titleEl.innerText.trim();
-                        const priceText = priceEl.innerText.trim().replace(/,/g, '');
-                        const m = priceText.match(/(\d+(\.\d+)?)/);
+        const results = await page.evaluate(() => {
+            const cards = Array.from(document.querySelectorAll('[class*="search-item-card"], [class*="list--item"], [class*="multi--content"], [class*="ItemCard"]'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('h3, h1, [class*="title"]');
+                const priceEl = card.querySelector('[class*="price"], .lw_kt');
+                const linkEl = card.tagName === 'A' ? card : card.querySelector('a[href*="/item/"]');
+                if (titleEl && priceEl && linkEl) {
+                    const priceText = priceEl.innerText.trim();
+                    const m = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) {
+                        let p = parseFloat(m[0]);
+                        if (priceText.includes('PKR') || (priceText.includes('Rs') && p > 1000)) p = parseFloat((p / 280).toFixed(2));
                         const url = linkEl.href.startsWith('http') ? linkEl.href : 'https:' + linkEl.getAttribute('href');
-                        const itemIdMatch = url.match(/\/item\/(\d+)\.html/);
-                        const itemId = itemIdMatch ? itemIdMatch[1] : url;
-
-                        if (m && titleText.length > 5 && !seenIds.has(itemId)) {
-                            seenIds.add(itemId);
-                            let priceVal = parseFloat(m[0]);
-                            if (priceText.includes('PKR') || priceVal > 500) { priceVal = parseFloat((priceVal / 280).toFixed(2)); }
-                            data.push({ title: titleText, price: priceVal, image: imgEl ? (imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('src')) : "", url: url });
-                        }
+                        return { title: titleEl.innerText.trim(), price: p, image: card.querySelector('img')?.src || "", url };
                     }
                 }
-                return data;
-            });
-        };
-
-        let results = await getAliResults();
-        console.log(`[AliExpress] Initial check found: ${results.length} items`);
-        
-        if (results.length === 0) {
-            const pageData = await page.evaluate(() => ({
-                title: document.title,
-                bodySnippet: document.body.innerText.substring(0, 500),
-                cardCount: document.querySelectorAll('div').length
-            }));
-            console.log(`[AliExpress] DEBUG - Page Title: "${pageData.title}"`);
-            console.log(`[AliExpress] DEBUG - Body Snippet: ${pageData.bodySnippet.replace(/\n/g, ' ')}`);
-            
-            console.log("[AliExpress] Attempting scroll and re-scan...");
-            await page.evaluate(() => window.scrollBy(0, 1000));
-            await new Promise(r => setTimeout(r, 4000));
-            results = await getAliResults();
-            console.log(`[AliExpress] Items found after scroll: ${results.length}`);
-        }
-
+                return null;
+            }).filter(Boolean);
+        });
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[AliExpress] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
-    }
+    } catch (e) { console.error(`[AliExpress] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
 }
 
 async function scrapeWalmart(title) {
@@ -346,44 +313,38 @@ async function scrapeWalmart(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        const searchUrl = `https://www.walmart.com/search?q=${encodeURIComponent(searchTerm)}`;
-        console.log(`[Walmart] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        await checkAndHandleCaptcha(page, 'Walmart');
-        await new Promise(r => setTimeout(r, 5000));
+        await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        
+        await new Promise(r => setTimeout(r, 4000));
+        try { await checkAndHandleCaptcha(page, 'Walmart'); } catch (e) {}
+        await new Promise(r => setTimeout(r, 2000));
+
         const results = await page.evaluate(() => {
-            const data = [];
-            const cards = Array.from(document.querySelectorAll('[data-testid="list-view"], [data-item-id], .mb0-m'));
-            for (const card of cards) {
-                const titleEl = card.querySelector('[data-automation-id="product-title"], .f6-m');
-                const priceEl = card.querySelector('[data-automation-id="product-price"], .w_iUH7');
-                const imgEl = card.querySelector('img');
-                const linkEl = card.querySelector('a');
-                if (titleEl && priceEl && linkEl) {
-                    const priceText = priceEl.innerText.replace(/,/g, '');
-                    const m = priceText.match(/(\d+(\.\d+)?)/);
-                    if (m) {
-                        data.push({
-                            title: titleEl.innerText.trim(),
-                            price: parseFloat(m[0]),
-                            image: imgEl ? imgEl.src : "",
-                            url: linkEl.href.startsWith('http') ? linkEl.href : 'https://www.walmart.com' + linkEl.getAttribute('href')
-                        });
+            const cards = Array.from(document.querySelectorAll('[data-testid="list-view"], [data-item-id], [class*="mb0-m"]'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('[data-automation-id="product-title"], [class*="product-title"], h3');
+                const priceEl = card.querySelector('[data-automation-id="product-price"], [class*="price"]');
+                if (titleEl && priceEl) {
+                    // Walmart sometimes splits price: $<span>367</span><span>.98</span>
+                    // We need the full text but clean it carefully
+                    let priceText = priceEl.innerText.replace(/[^\d.]/g, '');
+                    // If multiple dots, take the first one and the rest as decimals? 
+                    // No, usually it's like $367.98. If it's 36798, maybe the dot is missing in innerText.
+                    // Let's try to find a dot or assume last two are decimals if price is huge and no dot.
+                    if (!priceText.includes('.') && priceText.length > 3) {
+                         // Likely missing dot, e.g. 36798 -> 367.98
+                         priceText = priceText.slice(0, -2) + '.' + priceText.slice(-2);
                     }
+                    const p = parseFloat(priceText);
+                    if (!isNaN(p)) return { title: titleEl.innerText.trim(), price: p, image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                 }
-                if (data.length >= 10) break;
-            }
-            return data;
+                return null;
+            }).filter(Boolean);
         });
-        console.log(`[Walmart] Found ${results.length} items.`);
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[Walmart] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
-    }
+    } catch (e) { console.error(`[Walmart] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
 }
 
 async function scrapeEtsy(title) {
@@ -393,40 +354,27 @@ async function scrapeEtsy(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        const searchUrl = `https://www.etsy.com/search?q=${encodeURIComponent(searchTerm)}`;
-        console.log(`[Etsy] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        await checkAndHandleCaptcha(page, 'Etsy');
-        await new Promise(r => setTimeout(r, 3000));
+        await page.goto(`https://www.etsy.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        
+        await new Promise(r => setTimeout(r, 4000));
+        try { await checkAndHandleCaptcha(page, 'Etsy'); } catch (e) {}
+        
         const results = await page.evaluate(() => {
-            const data = [];
-            const cards = Array.from(document.querySelectorAll('.wt-list-unstyled li, [data-search-results] li'));
-            for (const card of cards) {
-                const titleEl = card.querySelector('h3');
-                const priceEl = card.querySelector('.currency-value');
-                const imgEl = card.querySelector('img');
-                const linkEl = card.querySelector('a');
-                if (titleEl && priceEl && linkEl) {
-                    data.push({
-                        title: titleEl.innerText.trim(),
-                        price: parseFloat(priceEl.innerText.replace(/,/g, '')),
-                        image: imgEl ? imgEl.src : "",
-                        url: linkEl.href
-                    });
+            const cards = Array.from(document.querySelectorAll('.wt-list-unstyled li, [data-search-results] li, [class*="list-unstyled"] li'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('h3, [class*="title"]');
+                const priceEl = card.querySelector('.currency-value, [class*="price"]');
+                if (titleEl && priceEl) {
+                    const p = parseFloat(priceEl.innerText.replace(/,/g, '').replace(/[^\d.]/g, ''));
+                    if (!isNaN(p)) return { title: titleEl.innerText.trim(), price: p, image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                 }
-                if (data.length >= 10) break;
-            }
-            return data;
+                return null;
+            }).filter(Boolean);
         });
-        console.log(`[Etsy] Found ${results.length} items.`);
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[Etsy] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
-    }
+    } catch (e) { console.error(`[Etsy] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
 }
 
 async function scrapeCostco(title) {
@@ -436,91 +384,114 @@ async function scrapeCostco(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        const searchUrl = `https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(searchTerm)}`;
-        console.log(`[Costco] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        await checkAndHandleCaptcha(page, 'Costco');
+        await page.goto(`https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        
         await new Promise(r => setTimeout(r, 5000));
+        try { await checkAndHandleCaptcha(page, 'Costco'); } catch (e) {}
+
         const results = await page.evaluate(() => {
-            const data = [];
-            const cards = Array.from(document.querySelectorAll('.product-list .product, .product-tile'));
-            for (const card of cards) {
-                const titleEl = card.querySelector('.description a');
-                const priceEl = card.querySelector('.price');
-                const imgEl = card.querySelector('img');
-                const linkEl = card.querySelector('a');
-                if (titleEl && priceEl && linkEl) {
-                    const priceText = priceEl.innerText.replace(/,/g, '');
-                    const m = priceText.match(/(\d+(\.\d+)?)/);
-                    if (m) {
-                        data.push({
-                            title: titleEl.innerText.trim(),
-                            price: parseFloat(m[0]),
-                            image: imgEl ? imgEl.src : "",
-                            url: linkEl.href
-                        });
-                    }
+            const cards = Array.from(document.querySelectorAll('.product-list .product, .product-tile, [class*="product-tile"]'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('.description a, h3, [class*="description"]');
+                const priceEl = card.querySelector('.price, [class*="price"]');
+                if (titleEl && priceEl) {
+                    const m = priceEl.innerText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                 }
-                if (data.length >= 10) break;
-            }
-            return data;
+                return null;
+            }).filter(Boolean);
         });
-        console.log(`[Costco] Found ${results.length} items.`);
         await browser.close();
         if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[Costco] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
-    }
+    } catch (e) { console.error(`[Costco] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
 }
 
 async function scrapeTemu(title) {
     const searchTerm = cleanTitle(title);
     console.log(`\n--- Temu Scrape Start: ${searchTerm} ---`);
-    const { browser, tempDir } = await launchScraperBrowser();
+    const { browser } = await launchScraperBrowser();
     try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        const searchUrl = `https://www.temu.com/search_result.html?search_key=${encodeURIComponent(searchTerm)}`;
-        console.log(`[Temu] Navigating to: ${searchUrl}`);
-        await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        await checkAndHandleCaptcha(page, 'Temu');
+        const page = await preparePage(browser);
+        await page.goto(`https://www.temu.com/search_result.html?search_key=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        
         await new Promise(r => setTimeout(r, 5000));
+        try { await checkAndHandleCaptcha(page, 'Temu'); } catch (e) {}
+
         const results = await page.evaluate(() => {
-            const data = [];
-            const cards = Array.from(document.querySelectorAll('[data-goods-id], .goods-item'));
-            for (const card of cards) {
+            const cards = Array.from(document.querySelectorAll('[data-goods-id], .goods-item, [class*="goods-item"]'));
+            return cards.map(card => {
                 const titleEl = card.querySelector('[class*="title"], [class*="desc"]');
                 const priceEl = card.querySelector('[class*="price"]');
-                const imgEl = card.querySelector('img');
-                const linkEl = card.querySelector('a');
-                if (titleEl && priceEl && linkEl) {
-                    const priceText = priceEl.innerText.replace(/,/g, '');
-                    const m = priceText.match(/(\d+(\.\d+)?)/);
-                    if (m) {
-                        data.push({
-                            title: titleEl.innerText.trim(),
-                            price: parseFloat(m[0]),
-                            image: imgEl ? (imgEl.src || imgEl.getAttribute('data-src')) : "",
-                            url: linkEl.href
-                        });
-                    }
+                if (titleEl && priceEl) {
+                    const m = priceEl.innerText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                 }
-                if (data.length >= 10) break;
-            }
-            return data;
+                return null;
+            }).filter(Boolean);
         });
-        console.log(`[Temu] Found ${results.length} items.`);
         await browser.close();
-        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) {
-        console.error('[Temu] Error:', e.message);
-        if (browser) await browser.close();
-        return [];
-    }
+    } catch (e) { console.error(`[Temu] Error: ${e.message}`); if (browser) await browser.close(); return []; }
 }
 
-module.exports = { scrapeEbay, scrapeAmazon, scrapeAliExpress, scrapeWalmart, scrapeEtsy, scrapeCostco, scrapeTemu };
+async function scrapeTarget(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`\n--- Target Scrape Start: ${searchTerm} ---`);
+    const { browser } = await launchScraperBrowser();
+    try {
+        const page = await preparePage(browser);
+        await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        await new Promise(r => setTimeout(r, 4000));
+        try { await checkAndHandleCaptcha(page, 'Target'); } catch (e) {}
+
+        const results = await page.evaluate(() => {
+            const cards = Array.from(document.querySelectorAll('[data-test="@web/site-top-of-funnel/ProductCardWrapper"]'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('[data-test="product-title"]');
+                const priceEl = card.querySelector('[data-test="current-price"]');
+                if (titleEl && priceEl) {
+                    const m = priceEl.innerText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
+                }
+                return null;
+            }).filter(Boolean);
+        });
+        await browser.close();
+        return results.slice(0, 10);
+    } catch (e) { console.error(`[Target] Error: ${e.message}`); if (browser) await browser.close(); return []; }
+}
+
+async function scrapeBestBuy(title) {
+    const searchTerm = cleanTitle(title);
+    console.log(`\n--- Best Buy Scrape Start: ${searchTerm} ---`);
+    const { browser } = await launchScraperBrowser();
+    try {
+        const page = await preparePage(browser);
+        await page.goto(`https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        await new Promise(r => setTimeout(r, 4000));
+        try { await checkAndHandleCaptcha(page, 'BestBuy'); } catch (e) {}
+
+        const results = await page.evaluate(() => {
+            const cards = Array.from(document.querySelectorAll('.sku-item, .list-item'));
+            return cards.map(card => {
+                const titleEl = card.querySelector('.sku-header a, .sku-title a');
+                const priceEl = card.querySelector('.priceView-customer-price span');
+                if (titleEl && priceEl) {
+                    const m = priceEl.innerText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    if (m) return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: titleEl.href };
+                }
+                return null;
+            }).filter(Boolean);
+        });
+        await browser.close();
+        return results.slice(0, 10);
+    } catch (e) { console.error(`[Best Buy] Error: ${e.message}`); if (browser) await browser.close(); return []; }
+}
+
+module.exports = { 
+    launchScraperBrowser, checkAndHandleCaptcha, 
+    scrapeEbay, scrapeAmazon, scrapeAliExpress, 
+    scrapeWalmart, scrapeEtsy, scrapeCostco, 
+    scrapeTemu, scrapeTarget, scrapeBestBuy 
+};
