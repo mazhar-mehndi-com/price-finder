@@ -22,7 +22,8 @@ export async function POST(request) {
     }
     url = urlObj.toString();
 
-    const chromePath = process.env.CHROME_EXECUTABLE_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
+    const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     const primaryUserDataDir = process.env.USER_DATA_DIR;
     const isItemPage = url.includes('/itm/');
 
