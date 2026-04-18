@@ -154,14 +154,58 @@ function ProductContent() {
                 </div>
                 
                 <div style={{ fontSize: '1.4rem', color: 'var(--primary)', fontWeight: 'bold', marginBottom: '10px', fontFamily: 'sans-serif' }}>Price: {data.Price}</div>
-                <div style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '30px', fontFamily: 'sans-serif' }}><strong>eBay Category ID:</strong> {data.Category}</div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '500', fontFamily: 'sans-serif' }}>eBay Category ID:</span>
+                  <span style={{ 
+                    backgroundColor: '#e7f3ff', color: 'var(--primary)', padding: '4px 12px', borderRadius: '8px', 
+                    fontWeight: '700', fontSize: '1rem', border: '1px solid #bee3f8', fontFamily: 'monospace' 
+                  }}>
+                    {data.Category || '9355'}
+                  </span>
+                  <button onClick={() => copyToClipboard(data.Category || '9355', 'Category ID')} style={{ fontSize: '11px', padding: '5px 10px', cursor: 'pointer', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'white', fontFamily: 'sans-serif' }}>Copy ID</button>
+                </div>
 
                 {data.Images && data.Images.length > 0 && (
                     <div style={{ marginBottom: '40px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px' }}>
                           {data.Images.map((img, i) => (
-                              <div key={i} style={{ height: '140px', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fcfcfc' }}>
-                                  <img src={img} alt={`Gallery ${i}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                              <div key={i} className="gallery-item-wrapper" style={{ 
+                                height: '180px', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fcfcfc',
+                                position: 'relative'
+                              }}>
+                                  <img src={img} alt={`${data.Title} - ${i + 1}`} style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
+                                  <button 
+                                    onClick={async (e) => {
+                                        e.preventDefault();
+                                        try {
+                                            const response = await fetch(img);
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            // Sanitize title for filename
+                                            const safeTitle = data.Title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
+                                            a.download = `${safeTitle}_${i + 1}.jpg`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+                                            document.body.removeChild(a);
+                                        } catch (err) {
+                                            window.open(img, '_blank');
+                                        }
+                                    }}
+                                    style={{ 
+                                        position: 'absolute', top: '8px', right: '8px', backgroundColor: 'rgba(0,0,0,0.6)', 
+                                        color: 'white', border: 'none', borderRadius: '8px', padding: '6px 10px', 
+                                        fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', backdropFilter: 'blur(4px)',
+                                        opacity: 0, transition: 'opacity 0.2s'
+                                    }}
+                                    className="download-hover-btn"
+                                  >
+                                    ⬇ Download
+                                  </button>
                               </div>
                           ))}
                         </div>
