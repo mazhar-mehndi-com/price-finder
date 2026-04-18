@@ -2,6 +2,151 @@
 
 import { useState, useEffect } from 'react';
 
+const COLORS = {
+  bg: '#f4f6fb',
+  card: '#ffffff',
+  primary: '#6366f1', // Vibrant ZIK Purple
+  primaryLight: '#eef2ff',
+  textMain: '#1e1b4b', // Deep Navy
+  textMuted: '#94a3b8', // Cool Slate
+  border: '#eef2ff',
+  success: '#10b981',
+  danger: '#ef4444',
+  amazon: '#ff9900'
+};
+
+// --- SUB-COMPONENTS ---
+
+const WidgetHeader = ({ title, subtitle, badge }) => (
+  <div style={{ marginBottom: '20px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+      <h3 style={{ fontSize: '15px', fontWeight: '800', color: COLORS.textMain }}>{title}</h3>
+      {badge && (
+        <div style={{ padding: '4px 10px', backgroundColor: COLORS.primaryLight, borderRadius: '8px', color: COLORS.primary, fontSize: '11px', fontWeight: '800' }}>
+            {badge}
+        </div>
+      )}
+    </div>
+    {subtitle && <p style={{ fontSize: '12px', color: COLORS.textMuted, fontWeight: '500' }}>{subtitle}</p>}
+  </div>
+);
+
+const SellerCard = ({ seller, rank, onAnalyze }) => {
+  const volumeNum = parseInt((seller.discoveryVolume || "0").replace(/,/g, '')) || 0;
+  const simulatedRevenue = (volumeNum * (Math.random() * 20 + 15)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+  return (
+    <div 
+        onClick={() => onAnalyze(seller.username)}
+        style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '30px 1fr 40px 100px', 
+            alignItems: 'center', 
+            padding: '16px 0', 
+            borderBottom: `1px solid ${COLORS.border}`,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+        }}
+        className="hover-lift"
+    >
+        <div style={{ fontSize: '11px', fontWeight: '800', color: COLORS.textMuted }}>{rank}</div>
+        <div style={{ paddingLeft: '5px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: COLORS.textMain, marginBottom: '2px' }}>{seller.username}</div>
+            <div style={{ fontSize: '10px', color: COLORS.primary, fontWeight: '700', letterSpacing: '0.02em' }}>TOP SELLER</div>
+        </div>
+        <div style={{ textAlign: 'center', fontSize: '18px' }}>🕵️‍♂️</div>
+        <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain }}>${simulatedRevenue}</div>
+            <div style={{ fontSize: '9px', fontWeight: '700', color: COLORS.textMuted, letterSpacing: '0.03em' }}>REVENUE</div>
+        </div>
+    </div>
+  );
+};
+
+const CalendarWidget = () => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const EVENTS = {
+    '0-1': 'New Year\'s Sale 🎆',
+    '1-14': 'Valentine\'s Day ❤️',
+    '2-17': 'St. Patrick\'s Day 🍀',
+    '3-5': 'Easter Sunday 🐰',
+    '4-10': 'Mother\'s Day 👩',
+    '5-21': 'Father\'s Day 👨',
+    '6-4': 'Independence Day 🇺🇸',
+    '8-7': 'Labor Day Sale 🛠️',
+    '9-31': 'Halloween 🎃',
+    '10-11': 'Veterans Day 🎖️',
+    '10-26': 'Thanksgiving 🦃',
+    '10-27': 'Black Friday 🖤',
+    '11-25': 'Christmas Day 🎄',
+    '11-31': 'New Year\'s Eve 🥂'
+  };
+
+  const daysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
+  const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const year = currentDate.getFullYear();
+  const today = new Date();
+  const totalDays = daysInMonth(currentDate.getMonth(), year);
+  const startDay = (firstDayOfMonth(currentDate.getMonth(), year) + 6) % 7;
+
+  const findAbsoluteNextEvent = () => {
+    const curMonth = today.getMonth();
+    const curDay = today.getDate();
+    const sortedEventKeys = Object.keys(EVENTS).sort((a, b) => {
+        const [m1, d1] = a.split('-').map(Number);
+        const [m2, d2] = b.split('-').map(Number);
+        if (m1 !== m2) return m1 - m2;
+        return d1 - d2;
+    });
+    const nextKey = sortedEventKeys.find(k => {
+        const [m, d] = k.split('-').map(Number);
+        return m > curMonth || (m === curMonth && d >= curDay);
+    }) || sortedEventKeys[0];
+
+    const [m, d] = nextKey.split('-').map(Number);
+    const dateObj = new Date(year, m, d);
+    const formattedDate = dateObj.toLocaleString('default', { month: 'short', day: 'numeric' });
+    return `${EVENTS[nextKey]} — ${formattedDate}`;
+  };
+  
+  return (
+    <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+      <WidgetHeader title="Upcoming Events" badge="US ⌄" />
+      <div style={{ textAlign: 'center', margin: '15px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <span onClick={prevMonth} style={{ color: COLORS.textMuted, cursor: 'pointer', padding: '5px' }}>❮</span>
+            <span style={{ fontWeight: '900', color: COLORS.success, fontSize: '16px' }}>{monthName}</span>
+            <span onClick={nextMonth} style={{ color: COLORS.textMuted, cursor: 'pointer', padding: '5px' }}>❯</span>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px', textAlign: 'center', fontSize: '10px', fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', marginBottom: '10px' }}>
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i}>{d}</span>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px', textAlign: 'center', fontSize: '12px', color: COLORS.textMain, fontWeight: '700' }}>
+        {Array(startDay).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
+        {Array.from({ length: totalDays }, (_, i) => i + 1).map(day => {
+          const isToday = today.getDate() === day && today.getMonth() === currentDate.getMonth() && today.getFullYear() === year;
+          const eventKey = `${currentDate.getMonth()}-${day}`;
+          const hasEvent = EVENTS[eventKey];
+          return (
+            <div key={day} title={hasEvent || ''} style={{ padding: '8px 0', cursor: 'pointer', borderRadius: '8px', backgroundColor: isToday ? COLORS.success : (hasEvent ? COLORS.primaryLight : 'transparent'), color: isToday ? '#fff' : (hasEvent ? COLORS.primary : COLORS.textMain), position: 'relative', transition: 'all 0.2s' }}>
+              {day}
+              {hasEvent && !isToday && <div style={{ position: 'absolute', top: '2px', right: '2px', fontSize: '8px' }}>●</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: '20px', textAlign: 'center', borderTop: `1px solid ${COLORS.border}`, paddingTop: '15px' }}>
+        <div style={{ fontSize: '12px', fontWeight: '800', color: COLORS.success }}>Next Major: {findAbsoluteNextEvent()}</div>
+      </div>
+    </div>
+  );
+};
+
 export default function CompetitorResearch() {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
@@ -10,265 +155,180 @@ export default function CompetitorResearch() {
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
   const [discoveredSellers, setDiscoveredSellers] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [trendingProducts, setTrendingProducts] = useState([]);
 
-  useEffect(() => {
-    setMounted(true);
-    const savedHistory = localStorage.getItem('seller_history');
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
-  }, []);
-
-  if (!mounted) {
-    return (
-        <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg)' }}></div>
-    );
-  }
-
-  const saveToHistory = (name) => {
-    const newHistory = [name, ...history.filter(h => h !== name)].slice(0, 5);
-    setHistory(newHistory);
-    localStorage.setItem('seller_history', JSON.stringify(newHistory));
-  };
-
-  const handleSearch = async (e, directUser = null) => {
-    if (e) e.preventDefault();
-    const targetUser = directUser || username;
-    if (!targetUser) return;
-
+  const analyzeSeller = async (targetUser) => {
     setLoading(true);
     setError('');
-    setData(null);
-
     try {
       const response = await fetch('/api/competitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: targetUser.trim() }),
       });
-
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to fetch competitor data');
-
+      if (!response.ok) throw new Error(result.error || 'Analysis failed');
       setData(result);
-      saveToHistory(targetUser.trim());
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
 
   const discoverSellers = async () => {
     setDiscovering(true);
     setError('');
-    setDiscoveredSellers([]); // Clear previous
     try {
-      console.log("--- DISCOVERY STARTED ---");
       const res = await fetch('/api/discover-sellers', { method: 'POST' });
       const json = await res.json();
-      
-      console.log("Discovery Result:", json);
-      
-      if (!res.ok) throw new Error(json.error || "Server error during discovery");
-      
-      if (json.sellers && json.sellers.length > 0) {
-        setDiscoveredSellers(json.sellers);
-      } else {
-        setError("eBay discovery returned 0 sellers. Please try again or solve captcha in the browser window.");
-      }
-    } catch (err) {
-      console.error("Discovery Exception:", err);
-      setError("Discovery failed: " + err.message);
-    } finally {
-      setDiscovering(false);
-    }
+      if (!res.ok) throw new Error(json.error || "Server error");
+      setDiscoveredSellers(json.sellers || []);
+      setTrendingProducts(json.products || []);
+      localStorage.setItem('discovered_sellers', JSON.stringify(json.sellers || []));
+    } catch (err) { setError("Discovery failed: " + err.message); } finally { setDiscovering(false); }
   };
 
+  useEffect(() => {
+    setMounted(true);
+    const saved = localStorage.getItem('discovered_sellers');
+    if (saved) setDiscoveredSellers(JSON.parse(saved));
+    discoverSellers(); // Initial load
+  }, []);
+
+  if (!mounted) return <div style={{ minHeight: '100vh', backgroundColor: COLORS.bg }}></div>;
+
   return (
-    <div style={{ minHeight: '100vh', paddingBottom: '100px' }}>
-      <section className="hero-section">
-        <h1 className="hero-title">
-          Market <span style={{ color: 'var(--primary)' }}>Intelligence</span>.
-        </h1>
-        <p className="hero-subtitle">
-          Advanced analytics and trending score for eBay sellers.
-        </p>
+    <div style={{ backgroundColor: COLORS.bg, minHeight: '100vh', display: 'flex', flexWrap: 'wrap', fontFamily: 'Inter, sans-serif' }}>
+      
+      <style>{`
+        @media (max-width: 1200px) {
+            .persistent-sidebar { display: none !important; }
+            .content-wrapper { margin-left: 0 !important; padding: 0 20px 100px !important; }
+            .main-dashboard-grid { grid-template-columns: 1fr !important; }
+            .trending-row-card { grid-template-columns: 80px 1fr 50px !important; gap: 15px !important; padding: 15px !important; }
+            .stats-group-desktop { display: none !important; }
+            .verified-badge-desktop { display: none !important; }
+        }
+      `}</style>
+      
+      <aside className="persistent-sidebar" style={{ width: '80px', backgroundColor: '#fff', borderRight: `1px solid ${COLORS.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '30px', position: 'fixed', top: '73px', bottom: 0, zIndex: 100 }}>
+        {['⚡', '🔍', '📦', '🔗', '📑', '💎', '🎯', '🌟', '🗂️', '🎓', '🔧', '⚙️'].map((icon, i) => (
+          <div key={i} style={{ width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', fontSize: '20px', cursor: 'pointer', backgroundColor: i === 0 ? COLORS.primary : 'transparent', color: i === 0 ? '#fff' : COLORS.textMuted, boxShadow: i === 0 ? '0 8px 15px rgba(99, 102, 241, 0.25)' : 'none', transition: 'all 0.2s' }}>{icon}</div>
+        ))}
+      </aside>
 
-        <div className="search-form-container">
-          <form onSubmit={handleSearch} className="search-form">
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter eBay Seller Username..."
-              required
-              className="search-input"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="search-btn"
-            >
-              {loading ? 'Analyzing...' : 'Analyze Seller'}
-            </button>
-          </form>
-          
-          <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
-            {/* Discover Button */}
-            <button 
-                onClick={discoverSellers}
-                disabled={discovering}
-                style={{ 
-                    backgroundColor: 'white', color: 'var(--primary)', border: '2px solid var(--primary)', 
-                    padding: '8px 24px', borderRadius: '12px', fontWeight: '800', fontSize: '14px', 
-                    cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary)'; e.currentTarget.style.color = 'white'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.color = 'var(--primary)'; }}
-            >
-                {discovering ? '🔍 Scanning eBay...' : '🔥 Discover New Top Sellers'}
-            </button>
-
-            {/* Discovered Badges */}
-            {discoveredSellers.length > 0 && (
-                <div className="animate-fade-in" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--success)', alignSelf: 'center' }}>Found:</span>
-                    {discoveredSellers.map(s => (
-                        <button key={s} onClick={() => { setUsername(s); handleSearch(null, s); }} style={{ padding: '4px 12px', borderRadius: '100px', border: '1px solid #c6f6d5', backgroundColor: '#f0fff4', color: '#2f855a', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>{s}</button>
-                    ))}
-                </div>
-            )}
-
-            {/* Recent History */}
-            {history.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)', alignSelf: 'center' }}>Recent:</span>
-                    {history.map((s) => (
-                        <button key={s} onClick={() => { setUsername(s); handleSearch(null, s); }} style={{ padding: '6px 14px', borderRadius: '100px', border: '1px solid #e2e8f0', backgroundColor: '#fff', fontSize: '12px', fontWeight: '600', color: '#4a5568', cursor: 'pointer' }}>{s}</button>
-                    ))}
-                </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
-
-      {error && (
-        <div className="animate-fade-in" style={{ padding: '20px', backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '16px', color: '#c53030', textAlign: 'center', marginBottom: '20px', maxWidth: '800px', margin: '0 auto 40px' }}>
-          <strong>Error:</strong> {error}
-        </div>
-      )}
-
-      {data && (
-        <div className="animate-fade-in">
-          {/* Market Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-            {[
-                { label: 'Seller', value: data.username, color: 'var(--primary)' },
-                { label: 'Market STR', value: data.stats.marketStr, color: 'var(--success)' },
-                { label: 'Total Sold', value: data.stats.totalSold, color: '#2d3748' },
-                { label: 'Unique Items', value: data.stats.uniqueProducts, color: '#666' },
-            ].map((stat, i) => (
-                <div key={i} style={{ padding: '24px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</div>
-                    <div style={{ fontSize: '24px', fontWeight: '800', color: stat.color }}>{stat.value}</div>
-                </div>
+      <div className="content-wrapper" style={{ flex: 1, marginLeft: '80px', padding: '0 40px 100px', maxWidth: '100vw' }}>
+        
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '25px 0', borderBottom: `1px solid ${COLORS.border}`, marginBottom: '40px', flexWrap: 'wrap', gap: '20px' }}>
+          <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+            {['Market Insights', 'Tools', 'My Dashboard'].map((tab, i) => (
+              <div key={tab} style={{ fontSize: '14px', fontWeight: '800', color: i === 0 ? COLORS.primary : COLORS.textMuted, position: 'relative', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                {tab}
+                {i === 0 && <div style={{ position: 'absolute', bottom: '-28px', left: 0, right: 0, height: '4px', backgroundColor: COLORS.primary, borderRadius: '10px' }}></div>}
+              </div>
             ))}
           </div>
+          <div style={{ display: 'flex', gap: '25px', color: COLORS.textMuted, fontSize: '18px' }}><span>🌐</span><span>🔔</span></div>
+        </header>
 
-          {/* Analysis List */}
-          <div style={{ marginTop: '80px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '50px' }}>
-                <h2 style={{ fontSize: '32px', fontWeight: '800', color: '#1e1b4b', marginBottom: '8px' }}>Trending Products</h2>
-                <p style={{ color: '#94a3b8', fontSize: '16px', fontWeight: '500' }}>Last 30 Days</p>
+        <div className="main-dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 320px) 1fr minmax(300px, 320px)', gap: '30px', alignItems: 'start' }}>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+              <WidgetHeader title="Trending Niches" subtitle="Last 30 Days" badge="US ⌄" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {[{ k: 'Arm Blood Pressure...', r: '$57,754', hot: true }, { k: 'Car Portable Vacuum...', r: '$55,349', hot: true }, { k: 'LED Headlamp USB...', r: '$44,836', hot: true }, { k: 'Waterproof Led Strip', r: '$58,098', hot: false }].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: COLORS.textMain }}>{item.k} {item.hot && '🔥'}</span>
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain }}>{item.r}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {data.products.length === 0 ? (
-                <div style={{ padding: '60px', backgroundColor: 'white', borderRadius: '24px', border: '1px dashed #e2e8f0', textAlign: 'center' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '20px' }}>🔍</div>
-                    <h3 style={{ fontSize: '20px', color: '#2d3748', marginBottom: '10px' }}>No items found for this seller</h3>
-                    <p style={{ color: 'var(--text-muted)' }}>This seller might not have any recent sales or active listings.</p>
+            <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+              <WidgetHeader title="Trending Sellers" subtitle="Last 30 Days" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {discoveredSellers.length > 0 ? discoveredSellers.map((s, i) => (
+                  <SellerCard key={i} seller={s} rank={i + 1} onAnalyze={(u) => analyzeSeller(u)} />
+                )) : (
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}><div className="loading-spinner" style={{ width: '20px', height: '20px', border: '3px solid #f3f3f3', borderTop: `3px solid ${COLORS.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }}></div></div>
+                )}
+                <button onClick={discoverSellers} disabled={discovering} style={{ marginTop: '15px', width: '100%', backgroundColor: COLORS.primaryLight, color: COLORS.primary, border: 'none', padding: '10px', borderRadius: '12px', fontWeight: '800', fontSize: '11px', cursor: 'pointer' }}>{discovering ? 'REFRESHING...' : 'REFRESH TOP SELLERS'}</button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', minWidth: 0 }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '15px 25px', border: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)' }}>
+                <div style={{ fontSize: '13px', color: COLORS.textMain, fontWeight: '700' }}>Dashboard Status: <span style={{ color: COLORS.success, fontWeight: '800' }}>Live Market Scan Active</span></div>
+                <button onClick={() => window.location.href='/seller-lookup'} style={{ backgroundColor: COLORS.textMain, color: '#fff', border: 'none', padding: '8px 20px', borderRadius: '12px', fontWeight: '800', fontSize: '12px', cursor: 'pointer' }}>🔍 Competitor Lookup</button>
+            </div>
+
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ marginBottom: '30px' }}>
+                    <h2 style={{ fontSize: 'clamp(24px, 4vw, 32px)', fontWeight: '900', color: COLORS.textMain, letterSpacing: '-0.03em', marginBottom: '5px' }}>{data ? `Analysis: ${data.username}` : 'Global Trending Products'}</h2>
+                    <p style={{ color: COLORS.textMuted, fontSize: '14px', fontWeight: '500' }}>Real-time demand verification based on verified eBay sales</p>
                 </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1100px', margin: '0 auto' }}>
-                    {data.products.map((item, i) => (
-                        <div key={i} className="animate-fade-in" style={{ 
-                            display: 'flex', alignItems: 'center', padding: '32px 40px', backgroundColor: 'white', 
-                            borderRadius: '24px', border: '1.5px solid #eef2ff', gap: '40px', position: 'relative',
-                            transition: 'all 0.2s', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)'
-                        }}
-                        onMouseEnter={(e) => { 
-                            e.currentTarget.style.transform = 'scale(1.01)'; 
-                            e.currentTarget.style.borderColor = '#dbeafe';
-                            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.05)'; 
-                        }}
-                        onMouseLeave={(e) => { 
-                            e.currentTarget.style.transform = 'scale(1)'; 
-                            e.currentTarget.style.borderColor = '#eef2ff';
-                            e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.02)'; 
-                        }}
-                        onClick={() => window.open(`/scrape-post?url=${encodeURIComponent(item.itemUrl)}`, '_blank')}
-                        >
-                            {/* Product Image */}
-                            <div style={{ width: '100px', height: '100px', backgroundColor: '#111', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                                <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
 
-                            {/* Title Section */}
-                            <div style={{ flex: '1', minWidth: '200px' }}>
-                                <h4 style={{ fontSize: '17px', fontWeight: '700', color: '#1e293b', lineHeight: '1.4', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                    {item.title}
-                                </h4>
-                            </div>
+                {discovering && !data && (
+                    <div style={{ padding: '80px 0' }}><div className="loading-spinner" style={{ width: '50px', height: '50px', border: '5px solid #fff', borderTop: `5px solid ${COLORS.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div><p style={{ fontWeight: '700', color: COLORS.textMain }}>Scanning Market...</p></div>
+                )}
 
-                            {/* Detective/Spy Icon */}
-                            <div style={{ fontSize: '32px', filter: 'grayscale(0.2)', opacity: 0.9 }}>
-                                {item.score > 80 ? '🕵️‍♂️🔥' : '🕵️‍♂️'}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                    {(data ? data.products : trendingProducts).map((item, i) => (
+                        <div key={i} className="animate-fade-in trending-row-card" style={{ backgroundColor: '#fff', borderRadius: '22px', border: '1.5px solid #eff6ff', padding: '20px 25px', display: 'grid', gridTemplateColumns: '80px 1fr 50px 250px 50px', alignItems: 'center', gap: '20px', transition: 'all 0.2s', cursor: 'pointer' }} onClick={() => window.open(`/scrape-post?url=${encodeURIComponent(item.url)}`, '_blank')}>
+                            <div style={{ width: '70px', height: '70px', backgroundColor: '#111', borderRadius: '12px', overflow: 'hidden' }}>
+                                {item.imageUrl ? (
+                                    <img src={item.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                                ) : (
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: '10px' }}>NO IMG</div>
+                                )}
                             </div>
-
-                            {/* Stats Columns (Matching Screenshot) */}
-                            <div style={{ display: 'flex', gap: '60px', alignItems: 'center', minWidth: '350px', justifyContent: 'flex-end' }}>
-                                <div style={{ textAlign: 'center', minWidth: '60px' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e1b4b', marginBottom: '16px' }}>Sales</div>
-                                    <div style={{ fontSize: '18px', fontWeight: '600', color: '#334155' }}>{item.soldCount}</div>
-                                </div>
-                                <div style={{ textAlign: 'center', minWidth: '80px' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e1b4b', marginBottom: '16px' }}>Total Sold</div>
-                                    <div style={{ fontSize: '18px', fontWeight: '600', color: '#334155' }}>{(parseInt(item.soldCount) * 12 + 150).toLocaleString()}</div>
-                                </div>
-                                <div style={{ textAlign: 'center', minWidth: '70px' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e1b4b', marginBottom: '16px' }}>Price</div>
-                                    <div style={{ fontSize: '18px', fontWeight: '600', color: '#334155' }}>${item.avgSoldPrice}</div>
-                                </div>
+                            <div style={{ textAlign: 'left', minWidth: 0 }}><h4 style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain, lineHeight: '1.3', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h4></div>
+                            <div style={{ fontSize: '24px', textAlign: 'center' }}>{i < 3 ? '🔥' : '🕵️‍♂️'}</div>
+                            <div className="stats-group-desktop" style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px' }}>
+                                {[{ l: 'Sales', v: item.volume }, { l: 'Growth', v: '+12%' }, { l: 'Price', v: item.price }].map(stat => (
+                                    <div key={stat.l} style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', fontWeight: '800', color: COLORS.textMain, marginBottom: '6px' }}>{stat.l}</div><div style={{ fontSize: '15px', fontWeight: '600', color: COLORS.textMuted }}>{stat.v}</div></div>
+                                ))}
                             </div>
-
-                            {/* Amazon-style Verified Badge */}
-                            <div style={{ marginLeft: '20px', flexShrink: 0 }}>
-                                <div style={{ 
-                                    width: '44px', height: '44px', borderRadius: '12px', border: '1.5px solid #e2e8f0',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-                                    backgroundColor: '#fff'
-                                }}>
-                                    <div style={{ fontWeight: '900', fontSize: '20px', color: '#1e293b', fontFamily: 'serif' }}>a</div>
-                                    <div style={{ 
-                                        position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', 
-                                        backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', 
-                                        justifyContent: 'center', border: '2px solid white' 
-                                    }}>
-                                        <span style={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>✓</span>
-                                    </div>
+                            <div className="verified-badge-desktop" style={{ textAlign: 'right' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '12px', border: `1.5px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginLeft: 'auto' }}>
+                                    <div style={{ fontWeight: '900', fontSize: '16px', color: COLORS.textMain }}>a</div>
+                                    <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '15px', height: '15px', backgroundColor: COLORS.success, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}><span style={{ color: '#fff', fontSize: '8px', fontWeight: '900' }}>✓</span></div>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
-            )}
+            </div>
           </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+              <WidgetHeader title="Advanced Tools" badge="ⓘ" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '25px' }}>
+                {[
+                  { name: 'Bulk Scanner' },
+                  { name: '500 Best Selling Items on eBay' },
+                  { name: 'Turbo Scanner' },
+                  { name: 'Autopilot' },
+                ].map((tool, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '10px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>🔒</div>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: COLORS.textMain }}>{tool.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <CalendarWidget />
+          </div>
+
         </div>
-      )}
-      </main>
+      </div>
+
       <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .hover-lift:hover { transform: translateY(-2px); opacity: 0.8; }
+        .hover-card:hover { transform: scale(1.01); border-color: #6366f1; box-shadow: 0 20px 40px rgba(99, 102, 241, 0.08); }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       `}</style>
     </div>
