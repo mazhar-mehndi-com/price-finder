@@ -123,8 +123,9 @@ export async function POST(request) {
                 .filter(src => src && !src.includes('s-l64') && src.startsWith('http'))
                 .map(src => src.replace(/s-l[0-9]+\./, 's-l1600.'));
             
-            // EXTRACT CATEGORY ID FROM VARIOUS SOURCES
+            // EXTRACT CATEGORY ID AND PATH FROM VARIOUS SOURCES
             let categoryId = "9355"; // Default
+            let categoryPath = "";
             try {
                 // 1. Check window.ebay (Common in many layouts)
                 if (window.ebay && window.ebay.categoryId) {
@@ -136,16 +137,26 @@ export async function POST(request) {
                 } else if (window.utag_data && window.utag_data.category_id) {
                     categoryId = window.utag_data.category_id.toString();
                 }
-                // 3. Search breadcrumbs specifically for the leaf category
-                if (categoryId === "9355") {
-                    const bcLinks = Array.from(document.querySelectorAll('nav.seo-breadcrumb-text a, .bc-w a, li.bc-item a'));
-                    if (bcLinks.length > 0) {
-                        const lastLink = bcLinks[bcLinks.length - 1].href;
-                        const m = lastLink.match(/\/sch\/(\d+)/) || lastLink.match(/_sacat=(\d+)/);
-                        if (m) categoryId = m[1];
+
+                // 3. Search breadcrumbs for path and ID
+                const bcLinks = Array.from(document.querySelectorAll('.seo-breadcrumb-text, .bc-w a, li.bc-item a, [data-testid="x-breadcrumb"] a'));
+                if (bcLinks.length > 0) {
+                    categoryPath = bcLinks.map(l => l.innerText.trim()).filter(t => t !== "").join(' > ');
+                    
+                    if (categoryId === "9355") {
+                        // Try to find the leaf ID from the last few links
+                        for (let i = bcLinks.length - 1; i >= 0; i--) {
+                            const href = bcLinks[i].href;
+                            const m = href.match(/\/(\d+)\//) || href.match(/\/sch\/(\d+)/) || href.match(/_sacat=(\d+)/);
+                            if (m && m[1].length > 3) { // Category IDs are usually longer than 3 digits
+                                categoryId = m[1];
+                                break;
+                            }
+                        }
                     }
                 }
-                // 4. Final attempt: Scan all script tags for categoryId
+
+                // 4. Final attempt: Scan all script tags for categoryId if still default
                 if (categoryId === "9355") {
                     const html = document.documentElement.innerHTML;
                     const m = html.match(/"categoryId"\s*:\s*"?(\d+)"?/) || 
@@ -164,7 +175,7 @@ export async function POST(request) {
             });
 
             const descIframe = document.querySelector('iframe[src*="desc"]')?.src || "";
-            return { title, price, images: [...new Set(images)], specs, descIframe, categoryId };
+            return { title, price, images: [...new Set(images)], specs, descIframe, categoryId, categoryPath };
         });
 
         let fullDescription = "";
@@ -198,6 +209,7 @@ export async function POST(request) {
                 DescriptionHtml: fullDescriptionHtml,
                 Action: "Add",
                 Category: productData.categoryId,
+                CategoryPath: productData.categoryPath,
                 ConditionID: "1000",
                 Quantity: "10",
                 Format: "FixedPriceItem",

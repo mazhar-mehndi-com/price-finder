@@ -155,7 +155,7 @@ function ProductContent() {
                 
                 <div style={{ fontSize: '1.4rem', color: 'var(--primary)', fontWeight: 'bold', marginBottom: '10px', fontFamily: 'sans-serif' }}>Price: {data.Price}</div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '500', fontFamily: 'sans-serif' }}>eBay Category ID:</span>
                   <span style={{ 
                     backgroundColor: '#e7f3ff', color: 'var(--primary)', padding: '4px 12px', borderRadius: '8px', 
@@ -165,6 +165,12 @@ function ProductContent() {
                   </span>
                   <button onClick={() => copyToClipboard(data.Category || '9355', 'Category ID')} style={{ fontSize: '11px', padding: '5px 10px', cursor: 'pointer', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'white', fontFamily: 'sans-serif' }}>Copy ID</button>
                 </div>
+
+                {data.CategoryPath && (
+                  <div style={{ marginBottom: '30px', fontSize: '14px', color: 'var(--text-muted)', backgroundColor: 'var(--bg)', padding: '8px 16px', borderRadius: '10px', border: '1px solid var(--border)', display: 'inline-block' }}>
+                    <strong>Category:</strong> {data.CategoryPath}
+                  </div>
+                )}
 
                 {data.Images && data.Images.length > 0 && (
                     <div style={{ marginBottom: '40px' }}>
