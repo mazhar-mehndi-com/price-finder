@@ -34,8 +34,8 @@ export async function POST(request) {
         return await puppeteer.launch({
             executablePath: chromePath,
             userDataDir: uDir,
-            headless: isItemPage, 
-            slowMo: isItemPage ? 0 : 50,
+            headless: isCloud ? true : isItemPage, 
+            slowMo: (isCloud || isItemPage) ? 0 : 50,
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
