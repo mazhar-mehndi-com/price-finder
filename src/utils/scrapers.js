@@ -530,9 +530,58 @@ async function scrapeBestBuy(title) {
     } catch (e) { console.error(`[Best Buy] Error: ${e.message}`); if (browser) await browser.close(); return []; }
 }
 
+async function fetchEbayMarketData(title) {
+    const searchTerm = cleanTitle(title);
+    const appId = process.env.EBAY_APP_ID?.trim();
+    if (!appId) throw new Error('eBay App ID missing');
+
+    const baseUrl = 'https://svcs.ebay.com/services/search/FindingService/v1';
+    const commonParams = {
+        'SERVICE-VERSION': '1.0.0',
+        'SECURITY-APPNAME': appId,
+        'RESPONSE-DATA-FORMAT': 'JSON',
+        'keywords': searchTerm,
+        'paginationInput.entriesPerPage': 20,
+        'outputSelector': 'PictureURLLarge'
+    };
+
+    try {
+        // 1. Fetch Active Items
+        const activeRes = await axios.get(baseUrl, {
+            params: { ...commonParams, 'OPERATION-NAME': 'findItemsByKeywords' }
+        });
+        const activeItems = (activeRes.data.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || []).map(item => ({
+            title: item.title?.[0],
+            price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
+            image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
+            url: item.viewItemURL?.[0],
+            status: 'active'
+        }));
+
+        // 2. Fetch Sold/Completed Items
+        const soldRes = await axios.get(baseUrl, {
+            params: { ...commonParams, 'OPERATION-NAME': 'findCompletedItems', 'itemFilter(0).name': 'SoldItemsOnly', 'itemFilter(0).value': 'true' }
+        });
+        const soldItems = (soldRes.data.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || []).map(item => ({
+            title: item.title?.[0],
+            price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
+            image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
+            url: item.viewItemURL?.[0],
+            endTime: item.listingInfo?.[0]?.endTime?.[0],
+            status: 'sold'
+        }));
+
+        return { activeItems, soldItems };
+    } catch (error) {
+        console.error('[eBay Analytics] Error:', error.message);
+        throw error;
+    }
+}
+
 module.exports = { 
     launchScraperBrowser, checkAndHandleCaptcha, getEbayToken,
     scrapeEbay, scrapeAmazon, scrapeAliExpress, 
     scrapeWalmart, scrapeEtsy, scrapeCostco, 
-    scrapeTemu, scrapeTarget, scrapeBestBuy 
+    scrapeTemu, scrapeTarget, scrapeBestBuy,
+    fetchEbayMarketData
 };
