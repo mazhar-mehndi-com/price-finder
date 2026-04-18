@@ -132,7 +132,11 @@ export default function MarketAnalytics() {
                     >
                         {/* Image */}
                         <div style={{ width: '80px', height: '80px', backgroundColor: '#f7fafc', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #edf2f7' }}>
-                            <img src={item.image} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
+                            {item.image ? (
+                                <img src={item.image} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} alt="" />
+                            ) : (
+                                <div style={{ fontSize: '10px', color: '#ccc' }}>NO IMAGE</div>
+                            )}
                         </div>
 
                         {/* Title */}

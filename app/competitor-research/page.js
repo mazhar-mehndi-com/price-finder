@@ -189,7 +189,12 @@ export default function CompetitorResearch() {
     setMounted(true);
     const saved = localStorage.getItem('discovered_sellers');
     if (saved) setDiscoveredSellers(JSON.parse(saved));
-    discoverSellers(); // Initial load
+    
+    // Explicitly trigger the global market scan on mount
+    const triggerDiscovery = async () => {
+        await discoverSellers();
+    };
+    triggerDiscovery();
   }, []);
 
   if (!mounted) return <div style={{ minHeight: '100vh', backgroundColor: COLORS.bg }}></div>;
