@@ -80,6 +80,25 @@ async function simulateHuman(page) {
     await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
 }
 
+async function autoScroll(page) {
+    await page.evaluate(async () => {
+        await new Promise((resolve) => {
+            let totalHeight = 0;
+            let distance = 300;
+            let timer = setInterval(() => {
+                let scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+
+                if (totalHeight >= scrollHeight || totalHeight > 3000) {
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, 100);
+        });
+    });
+}
+
 function cleanTitle(title) {
     if (!title) return "";
     let cleaned = title.replace(/[,\/#!$%\^&\*;:{}=\-_`~()]/g, " ").replace(/\s{2,}/g, " ").trim();
@@ -165,7 +184,7 @@ async function getEbayToken() {
         );
         return response.data.access_token;
     } catch (error) {
-        console.error(`[eBay ${isSandbox ? 'Sandbox' : 'API'}] Token Error:`, error.response?.data || error.message);
+        console.error(`[eBay ${isSandbox ? 'Sandbox' : 'Production'}] Token Error:`, error.response?.data || error.message);
         return null;
     }
 }
@@ -177,10 +196,9 @@ async function scrapeEbay(title) {
     const appId = process.env.EBAY_APP_ID?.trim();
     const isSandbox = appId?.includes('-SBX-');
 
-    // Try eBay API first
-    const token = await getEbayToken();
-    if (token) {
-        console.log(`[eBay] Using official ${isSandbox ? 'Sandbox' : 'Production'} API...`);
+    // Try eBay API first (Finding API uses SECURITY-APPNAME which is the App ID)
+    if (appId) {
+        console.log(`[eBay] Using official ${isSandbox ? 'Sandbox' : 'Production'} Finding API...`);
         const searchUrl = isSandbox
             ? 'https://svcs.sandbox.ebay.com/services/search/FindingService/v1'
             : 'https://svcs.ebay.com/services/search/FindingService/v1';
@@ -199,13 +217,15 @@ async function scrapeEbay(title) {
             });
 
             const searchResult = response.data.findItemsByKeywordsResponse?.[0]?.searchResult?.[0];
-            if (searchResult && searchResult.item) {
+            if (searchResult && searchResult.item && searchResult.item.length > 0) {
                 return searchResult.item.map(item => ({
                     title: item.title?.[0],
                     price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
                     image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
                     url: item.viewItemURL?.[0]
                 })).filter(i => i.price > 0);
+            } else {
+                console.log('[eBay API] No items found in API response, falling back to scraper...');
             }
         } catch (error) {
             console.error('[eBay API] Search Error:', error.message);
@@ -333,14 +353,16 @@ async function scrapeAliExpress(title) {
 async function scrapeWalmart(title) {
     const searchTerm = cleanTitle(title);
     console.log(`\n--- Walmart Scrape Start: ${searchTerm} ---`);
-    const { browser, tempDir } = await launchScraperBrowser();
+    const { browser } = await launchScraperBrowser();
     try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        const page = await preparePage(browser);
+        await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
-        await new Promise(r => setTimeout(r, 4000));
+        await new Promise(r => setTimeout(r, 5000));
         try { await checkAndHandleCaptcha(page, 'Walmart'); } catch (e) {}
+        
+        console.log('[Walmart] Scrolling to load items...');
+        await autoScroll(page);
         await new Promise(r => setTimeout(r, 2000));
 
         const results = await page.evaluate(() => {
@@ -349,38 +371,35 @@ async function scrapeWalmart(title) {
                 const titleEl = card.querySelector('[data-automation-id="product-title"], [class*="product-title"], h3');
                 const priceEl = card.querySelector('[data-automation-id="product-price"], [class*="price"]');
                 if (titleEl && priceEl) {
-                    // Walmart fix: Extract ONLY the current price text, avoiding merged labels
-                    // Usually current price is in a specific sub-element or first part of text
-                    let priceText = priceEl.innerText.split('Was')[0].split('Options')[0];
-                    priceText = priceText.replace(/[^\d.]/g, '');
-
-                    if (!priceText.includes('.') && priceText.length > 3) {
-                         priceText = priceText.slice(0, -2) + '.' + priceText.slice(-2);
+                    const text = priceEl.innerText;
+                    // Improved regex to find first dollar amount like 367.98
+                    const m = text.match(/\d+\.\d{2}/);
+                    if (m) {
+                        return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                     }
-                    const p = parseFloat(priceText);
-                    if (!isNaN(p)) return { title: titleEl.innerText.trim(), price: p, image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                 }
                 return null;
             }).filter(Boolean);
         });
         await browser.close();
-        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) { console.error(`[Walmart] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
+    } catch (e) { console.error(`[Walmart] Error: ${e.message}`); if (browser) await browser.close(); return []; }
 }
 
 async function scrapeEtsy(title) {
     const searchTerm = cleanTitle(title);
     console.log(`\n--- Etsy Scrape Start: ${searchTerm} ---`);
-    const { browser, tempDir } = await launchScraperBrowser();
+    const { browser } = await launchScraperBrowser();
     try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.etsy.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        const page = await preparePage(browser);
+        await page.goto(`https://www.etsy.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
-        await new Promise(r => setTimeout(r, 4000));
+        await new Promise(r => setTimeout(r, 5000));
         try { await checkAndHandleCaptcha(page, 'Etsy'); } catch (e) {}
         
+        console.log('[Etsy] Scrolling to load items...');
+        await autoScroll(page);
+
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('.wt-list-unstyled li, [data-search-results] li, [class*="list-unstyled"] li'));
             return cards.map(card => {
@@ -394,22 +413,23 @@ async function scrapeEtsy(title) {
             }).filter(Boolean);
         });
         await browser.close();
-        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) { console.error(`[Etsy] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
+    } catch (e) { console.error(`[Etsy] Error: ${e.message}`); if (browser) await browser.close(); return []; }
 }
 
 async function scrapeCostco(title) {
     const searchTerm = cleanTitle(title);
     console.log(`\n--- Costco Scrape Start: ${searchTerm} ---`);
-    const { browser, tempDir } = await launchScraperBrowser();
+    const { browser } = await launchScraperBrowser();
     try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        const page = await preparePage(browser);
+        await page.goto(`https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise(r => setTimeout(r, 6000));
         try { await checkAndHandleCaptcha(page, 'Costco'); } catch (e) {}
+
+        console.log('[Costco] Scrolling to load items...');
+        await autoScroll(page);
 
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('.product-list .product, .product-tile, [class*="product-tile"]'));
@@ -417,16 +437,15 @@ async function scrapeCostco(title) {
                 const titleEl = card.querySelector('.description a, h3, [class*="description"]');
                 const priceEl = card.querySelector('.price, [class*="price"]');
                 if (titleEl && priceEl) {
-                    const m = priceEl.innerText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
+                    const m = priceEl.innerText.replace(/,/g, '').match(/\d+\.\d{2}/);
                     if (m) return { title: titleEl.innerText.trim(), price: parseFloat(m[0]), image: card.querySelector('img')?.src || "", url: card.querySelector('a')?.href };
                 }
                 return null;
             }).filter(Boolean);
         });
         await browser.close();
-        if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         return results.slice(0, 10);
-    } catch (e) { console.error(`[Costco] Error: ${e.message}`); if (browser) await browser.close(); if (tempDir) try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (err) {} return []; }
+    } catch (e) { console.error(`[Costco] Error: ${e.message}`); if (browser) await browser.close(); return []; }
 }
 
 async function scrapeTemu(title) {
