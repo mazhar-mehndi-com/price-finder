@@ -62,6 +62,22 @@ function ProductContent() {
     }
   };
 
+  const copyHtmlToClipboard = async (html, label) => {
+    try {
+      const type = "text/html";
+      const blob = new Blob([html], { type });
+      const data = [new ClipboardItem({ [type]: blob })];
+      await navigator.clipboard.write(data);
+      setCopyStatus(`Copied ${label}!`);
+      setTimeout(() => setCopyStatus(''), 2000);
+    } catch (err) {
+      // Fallback to text copy if ClipboardItem is not supported
+      await navigator.clipboard.writeText(html);
+      setCopyStatus(`Copied ${label} (Text)!`);
+      setTimeout(() => setCopyStatus(''), 2000);
+    }
+  };
+
   const copyAll = () => {
     if (!data) return;
     let fullText = `# ${data.Title}\n\nCategory ID: ${data.Category}\n\nPrice: ${data.Price}\n\n`;
@@ -169,7 +185,22 @@ function ProductContent() {
                     </section>
                 )}
 
-                {data.Description && (
+                {data.DescriptionHtml ? (
+                    <section>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--text-main)', paddingBottom: '8px', marginBottom: '20px' }}>
+                          <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'sans-serif' }}>Description (HTML)</h2>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => copyHtmlToClipboard(data.DescriptionHtml, 'HTML Content')} style={{ fontSize: '12px', padding: '6px 12px', cursor: 'pointer', fontFamily: 'sans-serif', borderRadius: '6px', border: '1px solid var(--primary)', backgroundColor: 'var(--primary)', color: 'white' }}>📋 Copy HTML for eBay</button>
+                            <button onClick={() => copyToClipboard(data.Description, 'Text')} style={{ fontSize: '12px', padding: '6px 12px', cursor: 'pointer', fontFamily: 'sans-serif', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--bg)' }}>Copy Text</button>
+                          </div>
+                        </div>
+                        <div 
+                          className="ebay-desc-content"
+                          style={{ color: '#444', lineHeight: '1.6', fontSize: '16px', overflow: 'auto', maxHeight: '600px', border: '1px solid #eee', padding: '20px', borderRadius: '12px' }} 
+                          dangerouslySetInnerHTML={{ __html: data.DescriptionHtml }} 
+                        />
+                    </section>
+                ) : data.Description && (
                     <section>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--text-main)', paddingBottom: '8px', marginBottom: '20px' }}>
                           <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'sans-serif' }}>Description</h2>

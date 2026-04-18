@@ -168,10 +168,18 @@ export async function POST(request) {
         });
 
         let fullDescription = "";
+        let fullDescriptionHtml = "";
         if (productData.descIframe) {
             try {
                 await page.goto(productData.descIframe, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                fullDescription = await page.evaluate(() => document.body.innerText.trim());
+                const descData = await page.evaluate(() => {
+                    return {
+                        text: document.body.innerText.trim(),
+                        html: document.body.innerHTML.trim()
+                    };
+                });
+                fullDescription = descData.text;
+                fullDescriptionHtml = descData.html;
             } catch (e) { }
         }
 
@@ -187,6 +195,7 @@ export async function POST(request) {
                 Specs: productData.specs,
                 Description: fullDescription,
                 FullDescription: fullDescription,
+                DescriptionHtml: fullDescriptionHtml,
                 Action: "Add",
                 Category: productData.categoryId,
                 ConditionID: "1000",
@@ -314,7 +323,14 @@ export async function POST(request) {
                     if (details.iframe) {
                         try {
                             await page.goto(details.iframe, { waitUntil: 'domcontentloaded', timeout: 20000 });
-                            transformed[i].FullDescription = await page.evaluate(() => document.body.innerText.trim());
+                            const descData = await page.evaluate(() => {
+                                return {
+                                    text: document.body.innerText.trim(),
+                                    html: document.body.innerHTML.trim()
+                                };
+                            });
+                            transformed[i].FullDescription = descData.text;
+                            transformed[i].DescriptionHtml = descData.html;
                             transformed[i].Description = transformed[i].FullDescription.substring(0, 500).replace(/\n/g, ' ');
                         } catch (e) { }
                     }
