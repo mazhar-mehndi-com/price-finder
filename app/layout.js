@@ -1,4 +1,5 @@
 import './globals.css';
+import Link from 'next/link';
 
 export const metadata = {
   title: 'DealScout | Lowest Price Finder',
@@ -12,18 +13,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <nav style={{ 
-          backgroundColor: 'rgba(255, 255, 255, 0.8)', 
-          backdropFilter: 'blur(12px)',
-          padding: '16px 40px', 
-          borderBottom: '1px solid var(--border)',
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }}>
+        <nav className="nav-container">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ 
                 width: '32px', 
@@ -39,10 +29,11 @@ export default function RootLayout({ children }) {
             }}>D</div>
             <div style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '20px', letterSpacing: '-0.5px' }}>DealScout</div>
           </div>
-          <div style={{ display: 'flex', gap: '32px' }}>
-            <a href="/" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px', transition: 'color 0.2s' }}>eBay Scraper</a>
-            <a href="/lowest-price" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px' }}>Price Finder</a>
-            <a href="/market-analytics" style={{ textDecoration: 'none', color: 'var(--text-muted)', fontWeight: '500', fontSize: '14px' }}>Market Analytics</a>
+          <div className="nav-links">
+            <Link href="/" className="nav-link">eBay Scraper</Link>
+            <Link href="/lowest-price" className="nav-link">Price Finder</Link>
+            <Link href="/market-analytics" className="nav-link">Market Analytics</Link>
+            <Link href="/scrape-post" className="nav-link">Scrape Post</Link>
           </div>
           <div style={{ display: 'none' }}>
              {/* Spacing for balance on larger screens */}
