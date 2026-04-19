@@ -3,19 +3,57 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
 import { getDB } from '../../../src/lib/db';
-
-export async function POST() {
+export async function POST(request) {
   let browser;
   let tempDirToCleanup = null;
-  
+  const pool = getDB();
+
   try {
+    // 1. CHECK FOR DATABASE-ONLY MODE
+    const { searchParams } = new URL(request.url);
+    const mode = searchParams.get('mode');
+
+    if (mode === 'db') {
+        console.log("[API] Database-only mode requested. Checking MySQL...");
+        try {
+            const [rows] = await pool.execute(`
+                SELECT p.*, s.username 
+                FROM products p 
+                JOIN sellers s ON p.seller_id = s.id 
+                ORDER BY p.sales_volume DESC, p.id DESC 
+                LIMIT 20
+            `);
+            
+            if (rows.length > 0) {
+                console.log(`[API] DB Fetch Success. Found ${rows.length} rows.`);
+                const formattedSellers = [...new Set(rows.map(r => r.username))].map(name => ({
+                    username: name,
+                    discoveryVolume: rows.find(r => r.username === name).sales_volume.toLocaleString()
+                }));
+
+                const formattedProducts = rows.map(r => ({
+                    title: r.title,
+                    imageUrl: r.image_url,
+                    price: `$${r.price}`,
+                    url: r.item_url,
+                    volume: r.sales_volume
+                }));
+
+                return NextResponse.json({ sellers: formattedSellers, products: formattedProducts });
+            } else {
+                console.log("[API] DB is empty. Falling back to live discovery...");
+                // Don't return error, just proceed to live scrape mode below
+            }
+        } catch (dbErr) {
+            console.error("[API] DB Error:", dbErr.message);
+        }
+    }
+
+    // 2. LIVE SCRAPE MODE (Current Logic - also triggers when DB is empty)
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
+
     const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     const primaryUserDataDir = process.env.USER_DATA_DIR;
-    
-    // Attempt to get DB connection
-    let pool;
-    try { pool = getDB(); } catch(e) { console.error("DB Connection failed:", e.message); }
 
     const launchBrowser = async (useProfile) => {
         const uDir = useProfile ? primaryUserDataDir : path.join(process.cwd(), 'chrome-profile-discovery-' + Date.now());

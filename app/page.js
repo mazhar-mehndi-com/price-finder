@@ -192,13 +192,28 @@ export default function CompetitorResearch() {
     setDiscovering(true);
     setError('');
     try {
-      const res = await fetch('/api/discover-sellers', { method: 'POST' });
+      console.log("[Dashboard] Fetching market data from DB...");
+      const res = await fetch('/api/discover-sellers?mode=db', { method: 'POST' });
       const json = await res.json();
+      
+      console.log("[Dashboard] Received data:", json);
+      
       if (!res.ok) throw new Error(json.error || "Server error");
-      setDiscoveredSellers(json.sellers || []);
-      setTrendingProducts(json.products || []);
+      
+      if (json.sellers && json.sellers.length > 0) {
+        setDiscoveredSellers(json.sellers);
+      }
+      if (json.products && json.products.length > 0) {
+        setTrendingProducts(json.products);
+      }
+      
       localStorage.setItem('discovered_sellers', JSON.stringify(json.sellers || []));
-    } catch (err) { setError("Discovery failed: " + err.message); } finally { setDiscovering(false); }
+    } catch (err) { 
+        console.error("[Dashboard] Error:", err.message);
+        setError("Market Data is currently being updated. Please try again in 5 minutes."); 
+    } finally { 
+        setDiscovering(false); 
+    }
   };
 
   useEffect(() => {
