@@ -33,10 +33,9 @@ const WidgetHeader = ({ title, subtitle, badge }) => (
 );
 
 const SellerCard = ({ seller, rank, onAnalyze }) => {
-  const [revenue, setRevenue] = useState('0');
+  const [revenue, setRevenue] = useState(null);
 
   useEffect(() => {
-    // Generate stable simulated revenue only on client
     const volumeNum = parseInt((seller.discoveryVolume || "0").replace(/,/g, '')) || 0;
     const val = (volumeNum * (Math.random() * 20 + 15)).toLocaleString(undefined, { maximumFractionDigits: 0 });
     setRevenue(val);
@@ -63,7 +62,7 @@ const SellerCard = ({ seller, rank, onAnalyze }) => {
         </div>
         <div style={{ textAlign: 'center', fontSize: '18px' }}>🕵️‍♂️</div>
         <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain }}>${revenue}</div>
+            <div style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain }}>{revenue ? `$${revenue}` : '...'}</div>
             <div style={{ fontSize: '9px', fontWeight: '700', color: COLORS.textMuted, letterSpacing: '0.03em' }}>REVENUE</div>
         </div>
     </div>

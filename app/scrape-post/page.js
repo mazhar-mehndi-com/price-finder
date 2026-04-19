@@ -4,6 +4,18 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
+const COLORS = {
+  bg: '#f4f6fb',
+  card: '#ffffff',
+  primary: '#6366f1',
+  primaryLight: '#eef2ff',
+  textMain: '#1e1b4b',
+  textMuted: '#94a3b8',
+  border: '#eef2ff',
+  success: '#10b981',
+  danger: '#ef4444'
+};
+
 function ProductContent() {
   const searchParams = useSearchParams();
   const url = searchParams.get('url');
