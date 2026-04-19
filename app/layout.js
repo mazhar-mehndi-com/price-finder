@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
             <div style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '20px', letterSpacing: '-0.5px' }}>DealScout</div>
           </div>
           <div className="nav-links">
-            <Link href="/competitor-research" className="nav-link">Market Insights</Link>
+            <Link href="/" className="nav-link">Market Insights</Link>
             
             {/* Tools Dropdown */}
             <div style={{ position: 'relative' }} className="nav-dropdown-wrapper">
@@ -38,7 +38,7 @@ export default function RootLayout({ children }) {
                 Tools <span style={{ fontSize: '10px' }}>▼</span>
               </span>
               <div className="nav-dropdown">
-                <Link href="/" className="dropdown-item">eBay Scraper</Link>
+                <Link href="/ebay-scraper" className="dropdown-item">eBay Scraper</Link>
                 <Link href="/lowest-price" className="dropdown-item">Price Finder</Link>
                 <Link href="/market-analytics" className="dropdown-item">Market Analytics</Link>
                 <Link href="/seller-lookup" className="dropdown-item">Seller Lookup</Link>
