@@ -12,15 +12,22 @@ export const getDB = () => {
       throw new Error('DATABASE_URL is missing in .env. Please provide a valid MySQL connection string.');
     }
 
-    pool = mysql.createPool({
+    // Defensive config for cloud environments
+    const config = {
       uri: connectionString,
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 5, // Lower limit is safer for serverless/cloud
       queueLimit: 0,
-      ssl: {
-        rejectUnauthorized: true // Required for most cloud DBs like TiDB or Aiven
-      }
-    });
+    };
+
+    // Only add SSL object if not already present in the connection string URL
+    if (!connectionString.includes('ssl=')) {
+        config.ssl = {
+            rejectUnauthorized: true 
+        };
+    }
+
+    pool = mysql.createPool(config);
   }
   return pool;
 };
