@@ -91,12 +91,15 @@ export async function POST(request) {
 
     const itemUrls = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href*="/itm/"]'));
-        return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 10);
+        // Increase from 10 to 40 items for a broader scan
+        return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 40);
     });
 
     const sellersMap = {};
 
+    // Increase loop limit to find at least 25 unique sellers/products
     for (const url of itemUrls) {
+        if (Object.keys(sellersMap).length >= 25) break;
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
             const itemData = await page.evaluate(() => {
