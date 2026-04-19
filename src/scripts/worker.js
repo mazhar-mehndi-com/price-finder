@@ -1,7 +1,8 @@
 require('dotenv').config();
 const puppeteer = require('puppeteer');
 const mysql = require('mysql2/promise');
-const path = require('path');
+
+const SCRAPE_INTERVAL = 60 * 60 * 1000; // 1 Hour in milliseconds
 
 async function runWorker() {
     console.log(`[${new Date().toLocaleString()}] 🚀 Starting Market Intelligence Worker...`);
@@ -25,28 +26,20 @@ async function runWorker() {
 
         browser = await puppeteer.launch({
             executablePath: chromePath,
-            userDataDir: primaryUserDataDir, // Use profile for verified session
+            userDataDir: (primaryUserDataDir && !isCloud) ? primaryUserDataDir : undefined,
             headless: true, 
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
         });
 
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
-        // --- STEP 1: SCAN FOR TOP ITEMS (Multi-Niche Discovery) ---
-        const niches = [
-            'trending',
-            'best+seller',
-            'hot+deals',
-            'most+popular',
-            'top+rated'
-        ];
-        
+        // --- DISCOVERY LOGIC ---
+        const niches = ['trending', 'best+seller', 'hot+deals', 'top+rated'];
         const randomNiche = niches[Math.floor(Math.random() * niches.length)];
         const searchUrl = `https://www.ebay.com/sch/i.html?_nkw=${randomNiche}&_sacat=0&LH_Sold=1&_ipg=60&_sop=12`;
         
-        console.log(`[Worker] Scanning Niche [${randomNiche}]: ${searchUrl}`);
-        
+        console.log(`[Worker] Scanning [${randomNiche}]...`);
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await new Promise(r => setTimeout(r, 5000));
 
@@ -55,88 +48,75 @@ async function runWorker() {
             return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 15);
         });
 
-        console.log(`[Worker] Found ${itemUrls.length} items to analyze.`);
+        console.log(`[Worker] Found ${itemUrls.length} items.`);
 
         for (const url of itemUrls) {
             try {
-                console.log(`   - Visiting: ${url}`);
                 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                // Deep Wait for dynamic images to load
-                await new Promise(r => setTimeout(r, 4000));
+                await new Promise(r => setTimeout(r, 3000));
                 
                 const data = await page.evaluate(() => {
                     const res = { seller: null, soldCount: 0, title: "", price: "", img: "", itemId: "" };
-                    
                     const idM = window.location.href.match(/\/itm\/(\d+)/);
                     if (idM) res.itemId = idM[1];
 
-                    const sEl = document.querySelector('.x-sellercard-atf__info__about-seller a, [class*="seller-info"] a, .seller-persona a');
+                    const sEl = document.querySelector('.x-sellercard-atf__info__about-seller a, [class*="seller-info"] a');
                     if (sEl) res.seller = sEl.innerText.split('(')[0].trim().toLowerCase();
 
-                    const tEl = document.querySelector('h1.x-item-title__mainTitle, .x-item-title, h1[class*="title"]');
-                    res.title = tEl ? tEl.innerText.trim() : document.title.split('|')[0].trim();
+                    const tEl = document.querySelector('h1.x-item-title__mainTitle, .x-item-title');
+                    res.title = tEl ? tEl.innerText.trim() : "";
 
-                    const pEl = document.querySelector('.x-price-primary, .x-price-approx, .vi-price');
+                    const pEl = document.querySelector('.x-price-primary, .x-price-approx');
                     res.price = pEl ? pEl.innerText.trim() : "";
 
-                    // AGGRESSIVE IMAGE EXTRACTION
                     const findImg = () => {
-                        const selectors = [
-                            '.ux-image-magnify-view__image-container img',
-                            '.x-picture-wrapper img',
-                            '#icImg',
-                            '#mainImgHpr',
-                            '[data-testid="x-main-image"] img'
-                        ];
-                        for (const s of selectors) {
+                        const sel = ['.ux-image-magnify-view__image-container img', '.x-picture-wrapper img', '#icImg', '[data-testid="x-main-image"] img'];
+                        for (const s of sel) {
                             const el = document.querySelector(s);
                             if (el && el.src && el.src.includes('http')) return el.src;
                         }
-                        // Ultimate Fallback: Any large product image
-                        const allImgs = Array.from(document.querySelectorAll('img'));
-                        const productImg = allImgs.find(img => (img.width > 200 || img.height > 200) && img.src.includes('ebayimg.com'));
-                        return productImg ? productImg.src : "";
+                        return "";
                     };
                     res.img = findImg();
 
-                    const vEl = document.querySelector('.x-quantity-lbt .BOLD, .d-quantity__availability .BOLD, .vi-qtyS-hot-red');
+                    const vEl = document.querySelector('.x-quantity-lbt .BOLD, .d-quantity__availability .BOLD');
                     if (vEl) {
                         const m = vEl.innerText.replace(/,/g, '').match(/(\d+)/);
                         if (m) res.soldCount = parseInt(m[1]);
                     }
-                    
                     return res;
                 });
 
                 if (data.seller && data.itemId && data.title) {
-                    console.log(`     ✅ Saving: ${data.seller} | Image: ${data.img ? 'YES' : 'NO'}`);
-                    
+                    console.log(`   ✅ Saved: ${data.seller} | Img: ${data.img ? 'Y' : 'N'}`);
                     const [sResult] = await pool.execute('INSERT INTO sellers (username, last_scanned) VALUES (?, NOW()) ON DUPLICATE KEY UPDATE last_scanned = NOW()', [data.seller]);
                     const sellerId = sResult.insertId || (await pool.execute('SELECT id FROM sellers WHERE username = ?', [data.seller]))[0][0].id;
-
                     const priceNum = parseFloat(data.price.replace(/[^\d.]/g, '')) || 0;
-                    const [pResult] = await pool.execute(`
+                    await pool.execute(`
                         INSERT INTO products (ebay_id, seller_id, title, price, image_url, item_url, sales_volume)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE price = ?, sales_volume = ?, image_url = ?`,
                         [data.itemId, sellerId, data.title, priceNum, data.img, url, data.soldCount, priceNum, data.soldCount, data.img]
                     );
                 }
-
-            } catch (e) {
-                console.log(`     ⚠️ Skip: ${e.message}`);
-            }
+            } catch (e) { console.log(`   ⚠️ Skip: ${e.message}`); }
         }
-
-        console.log(`[Worker] ✅ Cycle completed.`);
+        console.log(`[Worker] ✅ Cycle completed. Next run in 1 hour.`);
 
     } catch (err) {
-        console.error(`[Worker] ❌ Fatal:`, err.message);
+        console.error(`[Worker] ❌ Fatal Error:`, err.message);
     } finally {
         if (browser) await browser.close();
         await pool.end();
-        process.exit();
     }
 }
 
-runWorker();
+// Infinite Loop
+async function start() {
+    while (true) {
+        await runWorker();
+        await new Promise(resolve => setTimeout(resolve, SCRAPE_INTERVAL));
+    }
+}
+
+start();
