@@ -11,6 +11,7 @@
     "axios": "^1.15.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
+    "mysql2": "^3.22.1",
     "next": "^15.1.11",
     "puppeteer": "^24.41.0",
     "puppeteer-core": "^24.41.0",

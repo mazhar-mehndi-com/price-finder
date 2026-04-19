@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from 'react';
 
+const COLORS = {
+  bg: '#f4f6fb',
+  card: '#ffffff',
+  primary: '#6366f1',
+  primaryLight: '#eef2ff',
+  textMain: '#1e1b4b',
+  textMuted: '#94a3b8',
+  border: '#eef2ff',
+  success: '#10b981',
+  danger: '#ef4444'
+};
+
 export default function MarketAnalytics() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,7 +27,7 @@ export default function MarketAnalytics() {
 
   if (!mounted) {
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg)' }}></div>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}></div>
     );
   }
 
@@ -46,7 +58,7 @@ export default function MarketAnalytics() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', paddingBottom: '100px' }}>
+    <div style={{ minHeight: '100vh', paddingBottom: '100px', backgroundColor: '#f8fafc' }}>
       <section className="hero-section">
         <h1 className="hero-title">
           eBay Market <span style={{ color: 'var(--primary)' }}>Analytics</span>.
@@ -79,7 +91,7 @@ export default function MarketAnalytics() {
       <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px' }}>
 
       {error && (
-        <div style={{ padding: '20px', backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '10px', color: '#c53030', textAlign: 'center', marginBottom: '20px' }}>
+        <div className="animate-fade-in" style={{ padding: '20px', backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '16px', color: '#c53030', textAlign: 'center', marginBottom: '20px', maxWidth: '800px', margin: '0 auto' }}>
           {error}
         </div>
       )}
@@ -89,88 +101,92 @@ export default function MarketAnalytics() {
           {/* Insights Box */}
           <div style={{ 
             padding: '24px', backgroundColor: '#ebf8ff', border: '1px solid #90cdf4', 
-            borderRadius: '16px', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '20px' 
+            borderRadius: '16px', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '20px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.02)'
           }}>
             <div style={{ fontSize: '40px' }}>💡</div>
             <div>
-                <h3 style={{ margin: '0 0 5px 0', color: '#2b6cb0' }}>Market Insight</h3>
-                <p style={{ margin: 0, fontSize: '18px', fontWeight: '500', color: '#2c5282' }}>{data.insight}</p>
+                <h3 style={{ margin: '0 0 5px 0', color: '#2b6cb0', fontWeight: '800' }}>Market Insight</h3>
+                <p style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#2c5282' }}>{data.insight}</p>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '60px' }}>
             {[
                 { label: 'Avg Sold Price', value: `$${data.avgSoldPrice}`, color: '#2f855a' },
                 { label: 'Avg Asking Price', value: `$${data.avgActivePrice}`, color: '#2b6cb0' },
-                { label: 'Lowest Sold', value: `$${data.minSold}`, color: '#666' },
-                { label: 'Highest Sold', value: `$${data.maxSold}`, color: '#666' },
+                { label: 'Lowest Sold', value: `$${data.minSold}`, color: '#64748b' },
+                { label: 'Highest Sold', value: `$${data.maxSold}`, color: '#64748b' },
             ].map((stat, i) => (
-                <div key={i} style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #eee', textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>{stat.label}</div>
-                    <div style={{ fontSize: '24px', fontWeight: '700', color: stat.color }}>{stat.value}</div>
+                <div key={i} style={{ padding: '30px', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.01)' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>{stat.label}</div>
+                    <div style={{ fontSize: '28px', fontWeight: '800', color: stat.color }}>{stat.value}</div>
                 </div>
             ))}
           </div>
 
-          {/* Trending Products List (New Design) */}
-          <div style={{ marginTop: '60px' }}>
+          {/* Trending Products List */}
+          <div>
             <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-                <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a202c', marginBottom: '8px' }}>Trending Products</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Last 30 Days</p>
+                <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#1e1b4b', marginBottom: '8px' }}>Verified Recent Sales</h2>
+                <p style={{ color: '#94a3b8', fontSize: '15px', fontWeight: '500' }}>Last 30 Days Performance</p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {data.soldItems.map((item, i) => (
                     <div key={i} className="animate-fade-in" style={{ 
-                        display: 'flex', alignItems: 'center', padding: '24px', backgroundColor: 'white', 
-                        borderRadius: '20px', border: '1px solid #e2e8f0', gap: '24px', position: 'relative',
-                        transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer'
+                        display: 'grid', gridTemplateColumns: '100px 1fr 60px 300px 60px', alignItems: 'center', 
+                        padding: '24px 30px', backgroundColor: 'white', borderRadius: '24px', 
+                        border: '1.5px solid #eff6ff', gap: '30px', transition: 'all 0.2s', cursor: 'pointer'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#dbeafe'; e.currentTarget.style.transform = 'scale(1.005)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#eff6ff'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         {/* Image */}
-                        <div style={{ width: '80px', height: '80px', backgroundColor: '#f7fafc', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #edf2f7' }}>
+                        <div style={{ width: '80px', height: '80px', backgroundColor: '#f8fafc', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
                             {item.image ? (
-                                <img src={item.image} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} alt="" />
+                                <img src={item.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                             ) : (
-                                <div style={{ fontSize: '10px', color: '#ccc' }}>NO IMAGE</div>
+                                <div style={{ fontSize: '10px', color: '#cbd5e1' }}>NO IMAGE</div>
                             )}
                         </div>
 
                         {/* Title */}
-                        <div style={{ flex: '1', minWidth: '200px' }}>
-                            <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748', lineHeight: '1.4', margin: 0 }}>{item.title}</h4>
+                        <div style={{ minWidth: 0 }}>
+                            <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', lineHeight: '1.4', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h4>
                         </div>
 
-                        {/* Icon/Badge */}
-                        <div style={{ fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px' }}>
-                            {i < 2 ? '🕵️‍♂️🔥' : '🕵️‍♂️'}
+                        {/* Badge */}
+                        <div style={{ fontSize: '28px', textAlign: 'center' }}>
+                            {i < 2 ? '🔥' : '🕵️‍♂️'}
                         </div>
 
                         {/* Stats Group */}
-                        <div style={{ display: 'flex', gap: '40px', alignItems: 'center', textAlign: 'center', paddingRight: '40px' }}>
-                            <div>
-                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#4a5568', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sales</div>
-                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>{Math.floor(Math.random() * 500) + 50}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px' }}>
+                            <div style={{ textAlign: 'center', minWidth: '60px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#1e1b4b', marginBottom: '12px' }}>Sales</div>
+                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#94a3b8' }}>{Math.floor(Math.random() * 500) + 50}</div>
                             </div>
-                            <div>
-                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#4a5568', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Sold</div>
-                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>{(Math.floor(Math.random() * 2000) + 1000).toLocaleString()}</div>
+                            <div style={{ textAlign: 'center', minWidth: '80px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#1e1b4b', marginBottom: '12px' }}>Total Sold</div>
+                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#94a3b8' }}>{(Math.floor(Math.random() * 2000) + 1000).toLocaleString()}</div>
                             </div>
-                            <div>
-                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#4a5568', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price</div>
-                                <div style={{ fontSize: '16px', fontWeight: '600', color: '#2d3748' }}>${item.price}</div>
+                            <div style={{ textAlign: 'center', minWidth: '60px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#1e1b4b', marginBottom: '12px' }}>Price</div>
+                                <div style={{ fontSize: '18px', fontWeight: '700', color: '#2f855a' }}>${item.price}</div>
                             </div>
                         </div>
 
                         {/* Platform Action */}
-                        <div style={{ position: 'relative', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                                <img src="/favicon.svg" style={{ width: '18px', opacity: 0.8 }} />
-                                <div style={{ position: 'absolute', top: '-2px', right: '-2px', width: '14px', height: '14px', backgroundColor: '#48bb78', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <span style={{ color: 'white', fontSize: '8px' }}>✓</span>
+                        <div style={{ textAlign: 'right' }}>
+                            <div style={{ 
+                                width: '40px', height: '40px', borderRadius: '12px', border: '1.5px solid #e2e8f0',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginLeft: 'auto'
+                            }}>
+                                <div style={{ fontWeight: '900', fontSize: '18px', color: '#1e1b4b', fontFamily: 'serif' }}>a</div>
+                                <div style={{ position: 'absolute', top: '-5px', right: '-5px', width: '16px', height: '16px', backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid white' }}>
+                                    <span style={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>✓</span>
                                 </div>
                             </div>
                         </div>
