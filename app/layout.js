@@ -30,11 +30,21 @@ export default function RootLayout({ children }) {
             <div style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '20px', letterSpacing: '-0.5px' }}>DealScout</div>
           </div>
           <div className="nav-links">
-            <Link href="/" className="nav-link">eBay Scraper</Link>
-            <Link href="/lowest-price" className="nav-link">Price Finder</Link>
-            <Link href="/market-analytics" className="nav-link">Market Analytics</Link>
-            <Link href="/competitor-research" className="nav-link">Competitor Research</Link>
-            <Link href="/scrape-post" className="nav-link">Scrape Post</Link>
+            <Link href="/competitor-research" className="nav-link">Market Insights</Link>
+            
+            {/* Tools Dropdown */}
+            <div style={{ position: 'relative' }} className="nav-dropdown-wrapper">
+              <span className="nav-link" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                Tools <span style={{ fontSize: '10px' }}>▼</span>
+              </span>
+              <div className="nav-dropdown">
+                <Link href="/" className="dropdown-item">eBay Scraper</Link>
+                <Link href="/lowest-price" className="dropdown-item">Price Finder</Link>
+                <Link href="/market-analytics" className="dropdown-item">Market Analytics</Link>
+                <Link href="/seller-lookup" className="dropdown-item">Seller Lookup</Link>
+                <Link href="/scrape-post" className="dropdown-item">Scrape Post</Link>
+              </div>
+            </div>
           </div>
           <div style={{ display: 'none' }}>
              {/* Spacing for balance on larger screens */}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 const COLORS = {
   bg: '#f4f6fb',
@@ -32,8 +33,14 @@ const WidgetHeader = ({ title, subtitle, badge }) => (
 );
 
 const SellerCard = ({ seller, rank, onAnalyze }) => {
-  const volumeNum = parseInt((seller.discoveryVolume || "0").replace(/,/g, '')) || 0;
-  const simulatedRevenue = (volumeNum * (Math.random() * 20 + 15)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const [revenue, setRevenue] = useState('0');
+
+  useEffect(() => {
+    // Generate stable simulated revenue only on client
+    const volumeNum = parseInt((seller.discoveryVolume || "0").replace(/,/g, '')) || 0;
+    const val = (volumeNum * (Math.random() * 20 + 15)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    setRevenue(val);
+  }, [seller.discoveryVolume]);
 
   return (
     <div 
@@ -56,7 +63,7 @@ const SellerCard = ({ seller, rank, onAnalyze }) => {
         </div>
         <div style={{ textAlign: 'center', fontSize: '18px' }}>🕵️‍♂️</div>
         <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain }}>${simulatedRevenue}</div>
+            <div style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMain }}>${revenue}</div>
             <div style={{ fontSize: '9px', fontWeight: '700', color: COLORS.textMuted, letterSpacing: '0.03em' }}>REVENUE</div>
         </div>
     </div>
@@ -64,8 +71,14 @@ const SellerCard = ({ seller, rank, onAnalyze }) => {
 };
 
 const CalendarWidget = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  
+  const [currentDate, setCurrentDate] = useState(null);
+
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
+
+  if (!currentDate) return <div style={{ height: '300px', backgroundColor: '#fff', borderRadius: '24px', border: `1px solid ${COLORS.border}` }}></div>;
+
   const EVENTS = {
     '0-1': 'New Year\'s Sale 🎆',
     '1-14': 'Valentine\'s Day ❤️',
@@ -85,11 +98,14 @@ const CalendarWidget = () => {
 
   const daysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
+
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
   const year = currentDate.getFullYear();
   const today = new Date();
+
   const totalDays = daysInMonth(currentDate.getMonth(), year);
   const startDay = (firstDayOfMonth(currentDate.getMonth(), year) + 6) % 7;
 
@@ -112,6 +128,7 @@ const CalendarWidget = () => {
     const formattedDate = dateObj.toLocaleString('default', { month: 'short', day: 'numeric' });
     return `${EVENTS[nextKey]} — ${formattedDate}`;
   };
+
   
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
@@ -221,14 +238,35 @@ export default function CompetitorResearch() {
 
       <div className="content-wrapper" style={{ flex: 1, marginLeft: '80px', padding: '0 40px 100px', maxWidth: '100vw' }}>
         
+        {/* HEADER NAVIGATION (BREADCRUMBS) */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '25px 0', borderBottom: `1px solid ${COLORS.border}`, marginBottom: '40px', flexWrap: 'wrap', gap: '20px' }}>
-          <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
-            {['Market Insights', 'Tools', 'My Dashboard'].map((tab, i) => (
-              <div key={tab} style={{ fontSize: '14px', fontWeight: '800', color: i === 0 ? COLORS.primary : COLORS.textMuted, position: 'relative', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                {tab}
-                {i === 0 && <div style={{ position: 'absolute', bottom: '-28px', left: 0, right: 0, height: '4px', backgroundColor: COLORS.primary, borderRadius: '10px' }}></div>}
+          <div style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
+            <Link href="/competitor-research" style={{ textDecoration: 'none', fontSize: '14px', fontWeight: '800', color: COLORS.primary, position: 'relative', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                Market Insights
+                <div style={{ position: 'absolute', bottom: '-28px', left: 0, right: 0, height: '4px', backgroundColor: COLORS.primary, borderRadius: '10px' }}></div>
+            </Link>
+
+            <span style={{ color: COLORS.textMuted, opacity: 0.5, fontSize: '10px' }}>❯</span>
+
+            {/* Tools Breadcrumb Dropdown */}
+            <div style={{ position: 'relative' }} className="nav-dropdown-wrapper">
+              <span style={{ fontSize: '14px', fontWeight: '800', color: COLORS.textMuted, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Tools <span style={{ fontSize: '10px' }}>▼</span>
+              </span>
+              <div className="nav-dropdown">
+                <Link href="/" className="dropdown-item">eBay Scraper</Link>
+                <Link href="/lowest-price" className="dropdown-item">Price Finder</Link>
+                <Link href="/market-analytics" className="dropdown-item">Market Analytics</Link>
+                <Link href="/seller-lookup" className="dropdown-item">Seller Lookup</Link>
+                <Link href="/scrape-post" className="dropdown-item">Scrape Post</Link>
               </div>
-            ))}
+            </div>
+
+            <span style={{ color: COLORS.textMuted, opacity: 0.5, fontSize: '10px' }}>❯</span>
+
+            <Link href="/competitor-research" style={{ textDecoration: 'none', fontSize: '14px', fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                My Dashboard
+            </Link>
           </div>
           <div style={{ display: 'flex', gap: '25px', color: COLORS.textMuted, fontSize: '18px' }}><span>🌐</span><span>🔔</span></div>
         </header>
@@ -310,11 +348,14 @@ export default function CompetitorResearch() {
             <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
               <WidgetHeader title="Advanced Tools" badge="ⓘ" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '25px' }}>
+                <div onClick={() => window.location.href='/'} style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '10px', backgroundColor: COLORS.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>🚀</div>
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.primary }}>Bulk Scanner</span>
+                </div>
                 {[
-                  { name: 'Bulk Scanner' },
-                  { name: '500 Best Selling Items on eBay' },
-                  { name: 'Turbo Scanner' },
-                  { name: 'Autopilot' },
+                  { name: '500 Best Selling Items on eBay', lock: true },
+                  { name: 'Turbo Scanner', lock: true },
+                  { name: 'Autopilot', lock: true },
                 ].map((tool, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
                     <div style={{ width: '28px', height: '28px', borderRadius: '10px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>🔒</div>
