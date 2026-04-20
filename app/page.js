@@ -6,10 +6,10 @@ import Link from 'next/link';
 const COLORS = {
   bg: '#f4f6fb',
   card: '#ffffff',
-  primary: '#6366f1', // Vibrant ZIK Purple
+  primary: '#6366f1',
   primaryLight: '#eef2ff',
-  textMain: '#1e1b4b', // Deep Navy
-  textMuted: '#94a3b8', // Cool Slate
+  textMain: '#1e1b4b',
+  textMuted: '#94a3b8',
   border: '#eef2ff',
   success: '#10b981',
   danger: '#ef4444',
@@ -158,7 +158,6 @@ const CalendarWidget = () => {
 };
 
 export default function CompetitorResearch() {
-  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [data, setData] = useState(null);
@@ -214,13 +213,9 @@ export default function CompetitorResearch() {
             gap: 25px;
             width: 100%;
         }
-
         @media (min-width: 1300px) {
-            .main-dashboard-grid {
-                grid-template-columns: 260px 1fr 260px;
-            }
+            .main-dashboard-grid { grid-template-columns: 260px 1fr 260px; }
         }
-
         .trending-row-card {
             display: grid;
             grid-template-columns: 60px 1fr 40px;
@@ -233,15 +228,11 @@ export default function CompetitorResearch() {
             border-radius: 20px;
             border: 1.5px solid #eff6ff;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
         }
-
         @media (min-width: 1000px) {
-            .trending-row-card {
-                grid-template-columns: 70px 1fr 50px 200px 50px;
-                gap: 20px;
-            }
+            .trending-row-card { grid-template-columns: 70px 1fr 50px 200px 50px; gap: 20px; }
         }
-
         .loading-spinner { width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid ${COLORS.primary}; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
@@ -265,121 +256,126 @@ export default function CompetitorResearch() {
       {/* --- CONTENT --- */}
       <div className="content-wrapper" style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', overflow: 'hidden' }}>
         
-        {/* SAFE INNER CONTAINER */}
         <div style={{ padding: '0 25px 100px', maxWidth: '100%', boxSizing: 'border-box' }}>
-        
+            
             {/* HEADER */}
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: `1px solid ${COLORS.border}`, marginBottom: '40px', gap: '20px' }}>
-              <div style={{ display: 'flex', gap: '20px', alignItems: 'center', minWidth: 0 }}>
-                <Link href="/" style={{ textDecoration: 'none', fontSize: '13px', fontWeight: '800', color: COLORS.primary, position: 'relative', textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
-                    Market Insights
-                    <div style={{ position: 'absolute', bottom: '-23px', left: 0, right: 0, height: '4px', backgroundColor: COLORS.primary, borderRadius: '10px' }}></div>
-                </Link>
-                <span style={{ color: COLORS.textMuted, opacity: 0.5, fontSize: '10px' }}><i className="fa-solid fa-chevron-right"></i></span>
-                <div style={{ position: 'relative' }} className="nav-dropdown-wrapper">
-                  <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.textMuted, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                    Tools <i className="fa-solid fa-caret-down" style={{ fontSize: '10px' }}></i>
-                  </span>
-                  <div className="nav-dropdown">
-                    <Link href="/ebay-scraper" className="dropdown-item"><i className="fa-solid fa-rocket" style={{ width: '20px' }}></i> Scraper</Link>
-                    <Link href="/lowest-price" className="dropdown-item"><i className="fa-solid fa-tag" style={{ width: '20px' }}></i> Price Finder</Link>
-                    <Link href="/market-analytics" className="dropdown-item"><i className="fa-solid fa-chart-line" style={{ width: '20px' }}></i> Analytics</Link>
-                    <Link href="/seller-lookup" className="dropdown-item"><i className="fa-solid fa-user-secret" style={{ width: '20px' }}></i> Seller Lookup</Link>
-                  </div>
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'center', minWidth: 0 }}>
+                    <Link href="/" style={{ textDecoration: 'none', fontSize: '13px', fontWeight: '800', color: COLORS.primary, position: 'relative', textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
+                        Market Insights
+                        <div style={{ position: 'absolute', bottom: '-23px', left: 0, right: 0, height: '4px', backgroundColor: COLORS.primary, borderRadius: '10px' }}></div>
+                    </Link>
+                    <span style={{ color: COLORS.textMuted, opacity: 0.5, fontSize: '10px' }}><i className="fa-solid fa-chevron-right"></i></span>
+                    <div style={{ position: 'relative' }} className="nav-dropdown-wrapper">
+                        <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.textMuted, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                            Tools <i className="fa-solid fa-caret-down" style={{ fontSize: '10px' }}></i>
+                        </span>
+                        <div className="nav-dropdown">
+                            <Link href="/ebay-scraper" className="dropdown-item"><i className="fa-solid fa-rocket" style={{ width: '20px' }}></i> Scraper</Link>
+                            <Link href="/lowest-price" className="dropdown-item"><i className="fa-solid fa-tag" style={{ width: '20px' }}></i> Price Finder</Link>
+                            <Link href="/market-analytics" className="dropdown-item"><i className="fa-solid fa-chart-line" style={{ width: '20px' }}></i> Analytics</Link>
+                            <Link href="/seller-lookup" className="dropdown-item"><i className="fa-solid fa-user-secret" style={{ width: '20px' }}></i> Seller Lookup</Link>
+                            <Link href="/admin/worker" className="dropdown-item"><i className="fa-solid fa-gears" style={{ width: '20px' }}></i> Worker Sync</Link>
+                        </div>
+                    </div>
+                    <span style={{ color: COLORS.textMuted, opacity: 0.5, fontSize: '10px' }}><i className="fa-solid fa-chevron-right"></i></span>
+                    <Link href="/" style={{ textDecoration: 'none', fontSize: '13px', fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Dashboard</Link>
                 </div>
-                <span style={{ color: COLORS.textMuted, opacity: 0.5, fontSize: '10px' }}><i className="fa-solid fa-chevron-right"></i></span>
-                <Link href="/" style={{ textDecoration: 'none', fontSize: '13px', fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>Dashboard</Link>
-              </div>
-              <div style={{ display: 'flex', gap: '20px', color: COLORS.textMuted, fontSize: '16px' }}>
-                <i className="fa-solid fa-earth-americas" style={{ cursor: 'pointer' }}></i>
-                <i className="fa-solid fa-bell" style={{ cursor: 'pointer' }}></i>
-              </div>
+                <div style={{ display: 'flex', gap: '20px', color: COLORS.textMuted, fontSize: '16px' }}>
+                    <i className="fa-solid fa-earth-americas" style={{ cursor: 'pointer' }}></i>
+                    <i className="fa-solid fa-bell" style={{ cursor: 'pointer' }}></i>
+                </div>
             </header>
 
             {/* GRID */}
             <div className="main-dashboard-grid">
-              
-              {/* LEFT COLUMN */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
-                <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
-                  <WidgetHeader title="Trending Niches" subtitle="Global Demand" icon="fa-chart-pie" badge="US ⌄" />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {[{ k: 'Smart Watches', r: '$157k' }, { k: 'Home Decor', r: '$125k' }, { k: 'Fitness Gear', r: '$94k' }, { k: 'Pet Supplies', r: '$88k' }].map((item, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', fontWeight: '700', color: COLORS.textMain, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px' }}>{item.k} <i className="fa-solid fa-fire" style={{ color: COLORS.danger, fontSize: '9px' }}></i></span>
-                        <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.textMain }}>{item.r}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
-                  <WidgetHeader title="Trending Sellers" subtitle="Best Performer" icon="fa-users-viewfinder" />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {discoveredSellers.length > 0 ? discoveredSellers.map((s, i) => (
-                      <SellerCard key={i} seller={s} rank={i + 1} onAnalyze={(u) => analyzeSeller(u)} />
-                    )) : (
-                      <div style={{ textAlign: 'center', padding: '20px 0' }}><div className="loading-spinner"></div></div>
-                    )}
-                    <button onClick={discoverSellers} disabled={discovering} style={{ marginTop: '15px', width: '100%', backgroundColor: COLORS.primaryLight, color: COLORS.primary, border: 'none', padding: '10px', borderRadius: '12px', fontWeight: '800', fontSize: '11px', cursor: 'pointer' }}>
-                       {discovering ? 'REFRESHING...' : 'REFRESH LIST'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* CENTER COLUMN */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
-                <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '12px 20px', border: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.02)' }}>
-                    <div style={{ fontSize: '12px', color: COLORS.textMain, fontWeight: '700' }}><i className="fa-solid fa-shield-check" style={{ color: COLORS.success, marginRight: '8px' }}></i> Market Live</div>
-                    <button onClick={() => window.location.href='/seller-lookup'} style={{ backgroundColor: COLORS.textMain, color: '#fff', border: 'none', padding: '6px 15px', borderRadius: '10px', fontWeight: '800', fontSize: '11px', cursor: 'pointer' }}><i className="fa-solid fa-magnifying-glass" style={{ marginRight: '6px' }}></i> Lookup</button>
-                </div>
-
-                <div style={{ textAlign: 'center' }}>
-                    <div style={{ marginBottom: '25px' }}>
-                        <h2 style={{ fontSize: '28px', fontWeight: '900', color: COLORS.textMain, letterSpacing: '-0.03em', marginBottom: '4px' }}>{data ? data.username : 'Trending Products'}</h2>
-                        <p style={{ color: COLORS.textMuted, fontSize: '13px', fontWeight: '500' }}>Verified eBay demand scan</p>
+                
+                {/* LEFT */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+                        <WidgetHeader title="Trending Niches" subtitle="Global Demand" icon="fa-chart-pie" badge="US ⌄" />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            {[{ k: 'Smart Watches', r: '$157k' }, { k: 'Home Decor', r: '$125k' }, { k: 'Fitness Gear', r: '$94k' }, { k: 'Pet Supplies', r: '$88k' }].map((item, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '700', color: COLORS.textMain, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px' }}>{item.k} <i className="fa-solid fa-fire" style={{ color: COLORS.danger, fontSize: '9px' }}></i></span>
+                                <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.textMain }}>{item.r}</span>
+                            </div>
+                            ))}
+                        </div>
                     </div>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+                        <WidgetHeader title="Trending Sellers" subtitle="Best Performer" icon="fa-users-viewfinder" />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {discoveredSellers.length > 0 ? discoveredSellers.map((s, i) => (
+                                <SellerCard key={i} seller={s} rank={i + 1} onAnalyze={(u) => analyzeSeller(u)} />
+                            )) : (
+                                <div style={{ textAlign: 'center', padding: '20px 0' }}><div className="loading-spinner"></div></div>
+                            )}
+                            <button onClick={discoverSellers} disabled={discovering} style={{ marginTop: '15px', width: '100%', backgroundColor: COLORS.primaryLight, color: COLORS.primary, border: 'none', padding: '10px', borderRadius: '12px', fontWeight: '800', fontSize: '11px', cursor: 'pointer' }}>
+                                {discovering ? 'REFRESHING...' : 'REFRESH LIST'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-                        {(data ? data.products : trendingProducts).map((item, i) => (
-                            <div key={i} className="animate-fade-in trending-row-card" onClick={() => window.open(`/scrape-post?url=${encodeURIComponent(item.url)}`, '_blank')}>
-                                <div style={{ width: '60px', height: '60px', backgroundColor: '#f8fafc', borderRadius: '10px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-                                    {item.imageUrl ? <img src={item.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '9px' }}>NO IMG</div>}
-                                </div>
-                                <div style={{ textAlign: 'left', minWidth: 0 }}><h4 style={{ fontSize: '13px', fontWeight: '800', color: COLORS.textMain, lineHeight: '1.3', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h4></div>
-                                <div style={{ fontSize: '20px', textAlign: 'center' }}>{i < 3 ? <i className="fa-solid fa-fire" style={{ color: COLORS.danger }}></i> : <i className="fa-solid fa-circle-check" style={{ color: COLORS.success, opacity: 0.5, fontSize: '14px' }}></i>}</div>
-                                <div className="stats-group-desktop" style={{ display: 'flex', justifyContent: 'space-between', padding: '0 5px' }}>
-                                    {[{ l: 'Sales', v: item.volume }, { l: 'Price', v: item.price }].map(stat => (
-                                        <div key={stat.l} style={{ textAlign: 'center' }}><div style={{ fontSize: '9px', fontWeight: '800', color: COLORS.textMain, marginBottom: '4px' }}>{stat.l}</div><div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.textMuted }}>{stat.v}</div></div>
-                                    ))}
-                                </div>
-                                <div className="verified-badge-desktop" style={{ textAlign: 'right' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1.5px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginLeft: 'auto' }}>
-                                        <div style={{ fontWeight: '900', fontSize: '14px', color: COLORS.textMain }}>a</div>
-                                        <div style={{ position: 'absolute', top: '-3px', right: '-4px', width: '13px', height: '13px', backgroundColor: COLORS.success, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}><i className="fa-solid fa-check" style={{ color: '#fff', fontSize: '7px' }}></i></div>
+                {/* CENTER */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '12px 20px', border: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.02)' }}>
+                        <div style={{ fontSize: '12px', color: COLORS.textMain, fontWeight: '700' }}><i className="fa-solid fa-shield-check" style={{ color: COLORS.success, marginRight: '8px' }}></i> Market Live</div>
+                        <button onClick={() => window.location.href='/seller-lookup'} style={{ backgroundColor: COLORS.textMain, color: '#fff', border: 'none', padding: '6px 15px', borderRadius: '10px', fontWeight: '800', fontSize: '11px', cursor: 'pointer' }}>
+                            <i className="fa-solid fa-magnifying-glass" style={{ marginRight: '6px' }}></i> Lookup
+                        </button>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ marginBottom: '25px' }}>
+                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: COLORS.textMain, letterSpacing: '-0.03em', marginBottom: '4px' }}>{data ? data.username : 'Trending Products'}</h2>
+                            <p style={{ color: COLORS.textMuted, fontSize: '13px', fontWeight: '500' }}>Verified eBay demand scan</p>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                            {(data ? data.products : trendingProducts).map((item, i) => (
+                                <div key={i} className="animate-fade-in trending-row-card" onClick={() => window.open(`/scrape-post?url=${encodeURIComponent(item.url)}`, '_blank')}>
+                                    <div style={{ width: '60px', height: '60px', backgroundColor: '#f8fafc', borderRadius: '10px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
+                                        {item.imageUrl ? <img src={item.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: '9px' }}>NO IMG</div>}
+                                    </div>
+                                    <div style={{ textAlign: 'left', minWidth: 0 }}><h4 style={{ fontSize: '13px', fontWeight: '800', color: COLORS.textMain, lineHeight: '1.3', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h4></div>
+                                    <div style={{ fontSize: '20px', textAlign: 'center' }}>{i < 3 ? <i className="fa-solid fa-fire" style={{ color: COLORS.danger }}></i> : <i className="fa-solid fa-circle-check" style={{ color: COLORS.success, opacity: 0.5, fontSize: '14px' }}></i>}</div>
+                                    <div className="stats-group-desktop" style={{ display: 'flex', justifyContent: 'space-between', padding: '0 5px' }}>
+                                        {[{ l: 'Sales', v: item.volume }, { l: 'Price', v: item.price }].map(stat => (
+                                            <div key={stat.l} style={{ textAlign: 'center' }}><div style={{ fontSize: '9px', fontWeight: '800', color: COLORS.textMain, marginBottom: '4px' }}>{stat.l}</div><div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.textMuted }}>{stat.v}</div></div>
+                                        ))}
+                                    </div>
+                                    <div className="verified-badge-desktop" style={{ textAlign: 'right' }}>
+                                        <div style={{ width: '32px', height: '32px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginLeft: 'auto' }}>
+                                            <div style={{ fontWeight: '900', fontSize: '14px', color: COLORS.textMain }}>a</div>
+                                            <div style={{ position: 'absolute', top: '-3px', right: '-4px', width: '13px', height: '13px', backgroundColor: COLORS.success, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}><i className="fa-solid fa-check" style={{ color: '#fff', fontSize: '7px' }}></i></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
-              </div>
 
-              {/* RIGHT COLUMN */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
-                <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
-                  <WidgetHeader title="Advanced Tools" icon="fa-screwdriver-wrench" badge="ⓘ" />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div onClick={() => window.location.href='/ebay-scraper'} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}><div style={{ width: '24px', height: '24px', borderRadius: '8px', backgroundColor: COLORS.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}><i className="fa-solid fa-rocket" style={{ color: COLORS.primary }}></i></div><span style={{ fontSize: '12px', fontWeight: '800', color: COLORS.primary }}>Bulk Scanner</span></div>
-                    {['500 Best Selling', 'Turbo Scanner', 'Autopilot'].map((tool, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><div style={{ width: '24px', height: '24px', borderRadius: '8px', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}><i className="fa-solid fa-lock" style={{ opacity: 0.2 }}></i></div><span style={{ fontSize: '12px', fontWeight: '700', color: COLORS.textMain }}>{tool}</span></div>
-                    ))}
-                  </div>
+                {/* RIGHT */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: `1px solid ${COLORS.border}` }}>
+                        <WidgetHeader title="Advanced Tools" icon="fa-screwdriver-wrench" badge="ⓘ" />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div onClick={() => window.location.href='/ebay-scraper'} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                <div style={{ width: '24px', height: '24px', borderRadius: '8px', backgroundColor: COLORS.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}><i className="fa-solid fa-rocket" style={{ color: COLORS.primary }}></i></div>
+                                <span style={{ fontSize: '12px', fontWeight: '800', color: COLORS.primary }}>Bulk Scanner</span>
+                            </div>
+                            <div onClick={() => window.location.href='/admin/worker'} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                <div style={{ width: '24px', height: '24px', borderRadius: '8px', backgroundColor: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}><i className="fa-solid fa-gears" style={{ color: '#d97706' }}></i></div>
+                                <span style={{ fontSize: '12px', fontWeight: '800', color: '#d97706' }}>Worker Sync</span>
+                            </div>
+                            {['500 Best Selling', 'Turbo Scanner', 'Autopilot'].map((tool, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><div style={{ width: '24px', height: '24px', borderRadius: '8px', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}><i className="fa-solid fa-lock" style={{ opacity: 0.2 }}></i></div><span style={{ fontSize: '12px', fontWeight: '700', color: COLORS.textMain }}>{tool}</span></div>
+                            ))}
+                        </div>
+                    </div>
+                    <CalendarWidget />
                 </div>
-                <CalendarWidget />
-              </div>
-
             </div>
         </div>
       </div>

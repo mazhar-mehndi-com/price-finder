@@ -9,32 +9,28 @@ export async function POST(request) {
   let tempDirToCleanup = null;
   
   try {
-    // --- DATABASE CONNECTION TESTER ---
+    // 1. DATABASE CONNECTION TESTER
     let pool;
-    console.log("[API] Testing DB connection...");
     try {
         pool = getDB();
-        // Simple Ping test
         await pool.query('SELECT 1');
-        console.log("[API] ✅ DB Connection Successful.");
+        console.log("[API] DB Connection: OK");
     } catch (dbInitErr) {
-        console.error("[API] ❌ DB CONNECTION FAILED:", dbInitErr.message);
-        // We do NOT throw here, we allow scraper to continue so you see data on screen
+        console.error("[API] DB Connection Failed:", dbInitErr.message);
     }
 
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode');
 
-    // --- DATABASE-ONLY MODE ---
+    // --- MODE: DATABASE ONLY (FAST) ---
     if (mode === 'db' && pool) {
-        console.log("[API] Fetching latest from MySQL...");
         try {
             const [rows] = await pool.execute(`
                 SELECT p.*, s.username 
                 FROM products p 
                 JOIN sellers s ON p.seller_id = s.id 
                 ORDER BY p.sales_volume DESC, p.id DESC 
-                LIMIT 20
+                LIMIT 25
             `);
             
             const formattedSellers = [...new Set(rows.map(r => r.username))].map(name => ({
@@ -53,55 +49,53 @@ export async function POST(request) {
             return NextResponse.json({ sellers: formattedSellers, products: formattedProducts });
         } catch (dbErr) {
             console.error("[API] DB Fetch Error:", dbErr.message);
-            // Fall through to live scrape if DB fetch fails
         }
     }
 
-    // --- LIVE SCRAPE MODE (Worker Sync) ---
+    // --- MODE: LIVE SYNC (SLOW SCRAPE) ---
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
     const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
-    const primaryUserDataDir = process.env.USER_DATA_DIR;
+    
+    // Create unique temp profile to avoid locking errors
+    tempDirToCleanup = path.join(process.cwd(), 'chrome-profile-sync-' + Date.now());
 
-    const launchBrowser = async (useProfile) => {
-        const uDir = useProfile ? primaryUserDataDir : path.join(process.cwd(), 'chrome-profile-discovery-' + Date.now());
-        if (!useProfile) tempDirToCleanup = uDir;
-        
-        return await puppeteer.launch({
-            executablePath: chromePath,
-            userDataDir: uDir,
-            headless: true, 
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'],
-        });
-    };
-
-    try {
-        browser = await launchBrowser(!!primaryUserDataDir && !isCloud);
-    } catch (e) {
-        browser = await launchBrowser(false);
-    }
+    browser = await puppeteer.launch({
+        executablePath: chromePath,
+        userDataDir: tempDirToCleanup,
+        headless: true, // Always headless for server routes
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            '--disable-dev-shm-usage',
+            '--disable-gpu'
+        ],
+    });
 
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
-    // Scrape logic
+    // 1. Initial Scrape (Trending Grid)
     const searchUrl = 'https://www.ebay.com/sch/i.html?_nkw=best+seller&_sacat=0&LH_Sold=1&_ipg=60&_sop=12';
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log(`[API] Scrape Start: ${searchUrl}`);
     
-    try { await page.waitForSelector('a[href*="/itm/"]', { timeout: 15000 }); } catch (e) {}
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await new Promise(r => setTimeout(r, 4000));
 
     const itemUrls = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href*="/itm/"]'));
-        // Increase from 10 to 40 items for a broader scan
-        return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 40);
+        return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 30);
     });
 
     const sellersMap = {};
 
-    // Increase loop limit to find at least 25 unique sellers/products
+    // 2. Item Deep-Dive
     for (const url of itemUrls) {
-        if (Object.keys(sellersMap).length >= 25) break;
+        if (Object.keys(sellersMap).length >= 20) break;
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await new Promise(r => setTimeout(r, 2000));
+
             const itemData = await page.evaluate(() => {
                 const res = { name: null, soldCount: 0, itemId: "", title: "", price: "", img: "" };
                 const urlMatch = window.location.href.match(/\/itm\/(\d+)/);
@@ -117,44 +111,56 @@ export async function POST(request) {
                 }
                 
                 const tEl = document.querySelector('h1.x-item-title__mainTitle, .x-item-title');
-                res.title = tEl ? tEl.innerText.trim() : document.title.split('|')[0].trim();
+                res.title = tEl ? tEl.innerText.trim() : "";
 
                 const pEl = document.querySelector('.x-price-primary, .x-price-approx');
                 res.price = pEl ? pEl.innerText.trim() : "";
 
-                const iEl = document.querySelector('.ux-image-magnify-view__image-container img, .x-picture-wrapper img, #icImg');
-                res.img = iEl ? (iEl.src || iEl.getAttribute('src')) : "";
+                const findImg = () => {
+                    const sel = ['.ux-image-magnify-view__image-container img', '.x-picture-wrapper img', '#icImg', '[data-testid="x-main-image"] img'];
+                    for (const s of sel) {
+                        const el = document.querySelector(s);
+                        if (el && el.src && el.src.includes('http')) return el.src;
+                    }
+                    return "";
+                };
+                res.img = findImg();
 
                 return res;
             });
 
-            if (itemData.name && itemData.itemId) {
+            if (itemData.name && itemData.itemId && itemData.title) {
                 const cleaned = itemData.name.toLowerCase();
                 if (!sellersMap[cleaned]) {
-                    sellersMap[cleaned] = { username: cleaned, totalVolume: 0, topItem: { title: itemData.title, imageUrl: itemData.img, price: itemData.price, url: url, volume: itemData.soldCount } };
-                }
-                sellersMap[cleaned].totalVolume += itemData.soldCount;
+                    sellersMap[cleaned] = { 
+                        username: cleaned, 
+                        totalVolume: itemData.soldCount, 
+                        topItem: { title: itemData.title, imageUrl: itemData.img, price: itemData.price, url: url, volume: itemData.soldCount } 
+                    };
 
-                // --- PERSIST TO DB ---
-                if (pool) {
-                    try {
-                        const [sRes] = await pool.execute('INSERT INTO sellers (username, last_scanned) VALUES (?, NOW()) ON DUPLICATE KEY UPDATE last_scanned = NOW()', [cleaned]);
-                        const sellerId = sRes.insertId || (await pool.execute('SELECT id FROM sellers WHERE username = ?', [cleaned]))[0][0].id;
-                        const priceNum = parseFloat(itemData.price.replace(/[^\d.]/g, '')) || 0;
-                        await pool.execute(`
-                            INSERT INTO products (ebay_id, seller_id, title, price, image_url, item_url, sales_volume) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?) 
-                            ON DUPLICATE KEY UPDATE price = ?, sales_volume = ?, image_url = ?`, 
-                            [itemData.itemId, sellerId, itemData.title, priceNum, itemData.img, url, itemData.soldCount, priceNum, itemData.soldCount, itemData.img]
-                        );
-                    } catch(dbErr) { console.error("Background DB Save Error:", dbErr.message); }
+                    // --- PERSIST TO DB ---
+                    if (pool) {
+                        try {
+                            const [sRes] = await pool.execute('INSERT INTO sellers (username, last_scanned) VALUES (?, NOW()) ON DUPLICATE KEY UPDATE last_scanned = NOW()', [cleaned]);
+                            const sellerId = sRes.insertId || (await pool.execute('SELECT id FROM sellers WHERE username = ?', [cleaned]))[0][0].id;
+                            const priceNum = parseFloat(itemData.price.replace(/[^\d.]/g, '')) || 0;
+                            await pool.execute(`
+                                INSERT INTO products (ebay_id, seller_id, title, price, image_url, item_url, sales_volume) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?) 
+                                ON DUPLICATE KEY UPDATE price = ?, sales_volume = ?, image_url = ?`, 
+                                [itemData.itemId, sellerId, itemData.title, priceNum, itemData.img, url, itemData.soldCount, priceNum, itemData.soldCount, itemData.img]
+                            );
+                        } catch(dbErr) { console.error("API DB Sync Error:", dbErr.message); }
+                    }
                 }
             }
         } catch (e) {}
     }
 
-    const finalSellers = Object.values(sellersMap).map(s => ({ username: s.username, discoveryVolume: s.totalVolume.toLocaleString(), topItem: s.topItem }));
-    const trendingProducts = finalSellers.map(s => s.topItem).filter(p => p.title !== "");
+    const finalSellers = Object.values(sellersMap).sort((a, b) => b.totalVolume - a.totalVolume).map(s => ({
+        username: s.username, discoveryVolume: s.totalVolume.toLocaleString(), topItem: s.topItem
+    }));
+    const trendingProducts = finalSellers.map(s => s.topItem);
 
     await browser.close();
     if (tempDirToCleanup) { try { fs.rmSync(tempDirToCleanup, { recursive: true, force: true }); } catch (e) {} }
