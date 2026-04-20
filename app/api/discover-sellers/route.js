@@ -4,6 +4,10 @@ import path from 'path';
 import fs from 'fs';
 import { getDB } from '../../../src/lib/db';
 
+export async function GET(request) {
+    return POST(request);
+}
+
 export async function POST(request) {
   let browser;
   let tempDirToCleanup = null;
