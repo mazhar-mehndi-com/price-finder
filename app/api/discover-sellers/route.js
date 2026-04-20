@@ -58,39 +58,35 @@ export async function POST(request) {
 
     // --- MODE: LIVE SYNC (WEB TRIGGER - OPTIMIZED FOR TIMEOUTS) ---
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
-    const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     
-    // Use /tmp on Linux/Cloud to avoid permission issues
+    // Auto-detect Chrome Path (More stable for Railway)
+    const chromePath = process.env.CHROME_EXECUTABLE_PATH;
+    const launchOptions = {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--single-process'],
+    };
+    if (chromePath) launchOptions.executablePath = chromePath;
+    
     const profileBase = isCloud ? '/tmp' : process.cwd();
     tempDirToCleanup = path.join(profileBase, 'chrome-profile-sync-' + Date.now());
+    launchOptions.userDataDir = tempDirToCleanup;
 
-    browser = await puppeteer.launch({
-        executablePath: chromePath,
-        userDataDir: tempDirToCleanup,
-        headless: true,
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--no-zygote',
-            '--single-process' // Better for low-memory containers
-        ],
-    });
-
+    console.log("[API] Launching Browser...");
+    browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
     const searchUrl = 'https://www.ebay.com/sch/i.html?_nkw=best+seller&_sacat=0&LH_Sold=1&_ipg=60&_sop=12';
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    console.log(`[API] Navigating to: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise(r => setTimeout(r, 6000)); // Stronger wait for grid
     
     const itemUrls = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href*="/itm/"]'));
-        // Web trigger: Limit to 8 items to stay under 60s timeout
         return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 8);
     });
 
-    const sellersMap = {};
+    console.log(`[API] Found ${itemUrls.length} items on page.`);
 
     for (const url of itemUrls) {
         try {
