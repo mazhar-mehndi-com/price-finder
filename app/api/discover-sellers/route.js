@@ -60,7 +60,8 @@ export async function POST(request) {
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
     
     // Auto-detect Chrome Path (More stable for Railway)
-    const chromePath = process.env.CHROME_EXECUTABLE_PATH;
+    const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : null);
+    
     const launchOptions = {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--single-process'],
@@ -88,6 +89,7 @@ export async function POST(request) {
 
     console.log(`[API] Found ${itemUrls.length} items on page.`);
 
+    const sellersMap = {};
     for (const url of itemUrls) {
         try {
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
