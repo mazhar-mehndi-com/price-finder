@@ -182,7 +182,10 @@ export default function CompetitorResearch() {
   };
 
   const discoverSellers = async () => {
-    setDiscovering(true);
+    // Only show "discovering" spinner if we have NO data to show yet
+    const hasData = (discoveredSellers && discoveredSellers.length > 0) || (trendingProducts && trendingProducts.length > 0);
+    if (!hasData) setDiscovering(true);
+    
     setError('');
     try {
       const res = await fetch('/api/discover-sellers?mode=db', { method: 'POST' });
@@ -192,15 +195,22 @@ export default function CompetitorResearch() {
       const sellers = json.sellers || [];
       const products = json.products || [];
       
-      setDiscoveredSellers(sellers);
-      setTrendingProducts(products);
-      
       if (sellers.length > 0) {
+        setDiscoveredSellers(sellers);
         localStorage.setItem('discovered_sellers', JSON.stringify(sellers));
+      }
+      
+      if (products.length > 0) {
+        setTrendingProducts(products);
+        localStorage.setItem('discovered_products', JSON.stringify(products));
+      }
+
+      if (sellers.length === 0 && !hasData) {
+        setError("Market database is empty. Please run a sync from the Worker Sync tool.");
       }
     } catch (err) { 
       console.error("Discovery Error:", err);
-      setError("Market Update in progress or Database empty..."); 
+      if (!hasData) setError("Could not load market data from database."); 
     } finally { 
       setDiscovering(false); 
     }
@@ -208,8 +218,14 @@ export default function CompetitorResearch() {
 
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem('discovered_sellers');
-    if (saved) setDiscoveredSellers(JSON.parse(saved));
+    
+    // Load from cache instantly
+    const savedSellers = localStorage.getItem('discovered_sellers');
+    const savedProducts = localStorage.getItem('discovered_products');
+    
+    if (savedSellers) setDiscoveredSellers(JSON.parse(savedSellers));
+    if (savedProducts) setTrendingProducts(JSON.parse(savedProducts));
+    
     discoverSellers();
   }, []);
 

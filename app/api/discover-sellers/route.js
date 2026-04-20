@@ -29,20 +29,30 @@ export async function POST(request) {
     // --- MODE: DATABASE ONLY (FAST) ---
     if (mode === 'db' && pool) {
         try {
+            // Get products, prioritizing those with higher sales volume
             const [rows] = await pool.execute(`
                 SELECT p.*, s.username 
                 FROM products p 
                 JOIN sellers s ON p.seller_id = s.id 
+                WHERE p.title IS NOT NULL AND p.title != ''
                 ORDER BY p.sales_volume DESC, p.id DESC 
-                LIMIT 25
+                LIMIT 50
             `);
             
-            const formattedSellers = [...new Set(rows.map(r => r.username))].map(name => ({
-                username: name,
-                discoveryVolume: rows.find(r => r.username === name).sales_volume.toLocaleString()
-            }));
+            // Map to unique sellers, prioritizing those with the highest volume products
+            const sellerMap = {};
+            rows.forEach(r => {
+                if (!sellerMap[r.username]) {
+                    sellerMap[r.username] = {
+                        username: r.username,
+                        discoveryVolume: r.sales_volume.toLocaleString()
+                    };
+                }
+            });
 
-            const formattedProducts = rows.map(r => ({
+            const formattedSellers = Object.values(sellerMap).slice(0, 15);
+
+            const formattedProducts = rows.slice(0, 25).map(r => ({
                 title: r.title,
                 imageUrl: r.image_url,
                 price: `$${r.price}`,
