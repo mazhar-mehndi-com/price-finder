@@ -188,10 +188,22 @@ export default function CompetitorResearch() {
       const res = await fetch('/api/discover-sellers?mode=db', { method: 'POST' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Server error");
-      setDiscoveredSellers(json.sellers || []);
-      setTrendingProducts(json.products || []);
-      localStorage.setItem('discovered_sellers', JSON.stringify(json.sellers || []));
-    } catch (err) { setError("Market Update in progress..."); } finally { setDiscovering(false); }
+      
+      const sellers = json.sellers || [];
+      const products = json.products || [];
+      
+      setDiscoveredSellers(sellers);
+      setTrendingProducts(products);
+      
+      if (sellers.length > 0) {
+        localStorage.setItem('discovered_sellers', JSON.stringify(sellers));
+      }
+    } catch (err) { 
+      console.error("Discovery Error:", err);
+      setError("Market Update in progress or Database empty..."); 
+    } finally { 
+      setDiscovering(false); 
+    }
   };
 
   useEffect(() => {
@@ -331,6 +343,22 @@ export default function CompetitorResearch() {
                             <h2 style={{ fontSize: '28px', fontWeight: '900', color: COLORS.textMain, letterSpacing: '-0.03em', marginBottom: '4px' }}>{data ? data.username : 'Trending Products'}</h2>
                             <p style={{ color: COLORS.textMuted, fontSize: '13px', fontWeight: '500' }}>Verified eBay demand scan</p>
                         </div>
+
+                        {error && (
+                            <div style={{ 
+                                padding: '15px', 
+                                backgroundColor: '#fff1f2', 
+                                borderRadius: '12px', 
+                                color: COLORS.danger, 
+                                fontWeight: '700', 
+                                marginBottom: '20px', 
+                                fontSize: '13px',
+                                border: `1px solid ${COLORS.danger}20` 
+                            }}>
+                                ℹ️ {error}
+                            </div>
+                        )}
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
                             {(data ? data.products : trendingProducts).map((item, i) => (
                                 <div key={i} className="animate-fade-in trending-row-card" onClick={() => window.open(`/scrape-post?url=${encodeURIComponent(item.url)}`, '_blank')}>
