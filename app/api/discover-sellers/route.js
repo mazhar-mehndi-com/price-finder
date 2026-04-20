@@ -56,49 +56,46 @@ export async function POST(request) {
         }
     }
 
-    // --- MODE: LIVE SYNC (SLOW SCRAPE) ---
+    // --- MODE: LIVE SYNC (WEB TRIGGER - OPTIMIZED FOR TIMEOUTS) ---
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
     const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
     
-    // Create unique temp profile to avoid locking errors
-    tempDirToCleanup = path.join(process.cwd(), 'chrome-profile-sync-' + Date.now());
+    // Use /tmp on Linux/Cloud to avoid permission issues
+    const profileBase = isCloud ? '/tmp' : process.cwd();
+    tempDirToCleanup = path.join(profileBase, 'chrome-profile-sync-' + Date.now());
 
     browser = await puppeteer.launch({
         executablePath: chromePath,
         userDataDir: tempDirToCleanup,
-        headless: true, // Always headless for server routes
+        headless: true,
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled',
             '--disable-dev-shm-usage',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--no-zygote',
+            '--single-process' // Better for low-memory containers
         ],
     });
 
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
-    // 1. Initial Scrape (Trending Grid)
     const searchUrl = 'https://www.ebay.com/sch/i.html?_nkw=best+seller&_sacat=0&LH_Sold=1&_ipg=60&_sop=12';
-    console.log(`[API] Scrape Start: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 4000));
-
     const itemUrls = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll('a[href*="/itm/"]'));
-        return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 30);
+        // Web trigger: Limit to 8 items to stay under 60s timeout
+        return [...new Set(links.map(l => l.href.split('?')[0]))].filter(h => h.includes('ebay.com/itm/')).slice(0, 8);
     });
 
     const sellersMap = {};
 
-    // 2. Item Deep-Dive
     for (const url of itemUrls) {
-        if (Object.keys(sellersMap).length >= 20) break;
         try {
-            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await new Promise(r => setTimeout(r, 2000));
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            await new Promise(r => setTimeout(r, 1500)); // Quick settle
 
             const itemData = await page.evaluate(() => {
                 const res = { name: null, soldCount: 0, itemId: "", title: "", price: "", img: "" };
