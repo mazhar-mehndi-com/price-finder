@@ -238,12 +238,11 @@ async function scrapeEbay(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_ipg=60&_blrs=recall_filtering`, { waitUntil: 'load', timeout: 60000 });
+        await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_ipg=60&_blrs=recall_filtering`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
-        await new Promise(r => setTimeout(r, 4000));
+        await new Promise(r => setTimeout(r, 1500));
         try { await checkAndHandleCaptcha(page, 'eBay'); } catch (e) {}
-        await new Promise(r => setTimeout(r, 2000));
-
+        
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('.s-item, .s-card, .srp-results .s-item, .srp-results .s-card, [class*="s-item"], [class*="s-card"]'));
             return cards.map(card => {
@@ -281,11 +280,10 @@ async function scrapeAmazon(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.amazon.com/s?k=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
+        await page.goto(`https://www.amazon.com/s?k=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 1000));
         try { await checkAndHandleCaptcha(page, 'Amazon'); } catch (e) {}
-        await simulateHuman(page);
         
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[data-component-type="s-search-result"]'));
@@ -319,11 +317,10 @@ async function scrapeAliExpress(title) {
     try {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.aliexpress.com/w/wholesale-${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}.html`, { waitUntil: 'load', timeout: 60000 });
+        await page.goto(`https://www.aliexpress.com/w/wholesale-${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise(r => setTimeout(r, 2000));
         try { await checkAndHandleCaptcha(page, 'AliExpress'); } catch (e) {}
-        await new Promise(r => setTimeout(r, 3000));
 
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[class*="search-item-card"], [class*="list--item"], [class*="multi--content"], [class*="ItemCard"]'));
