@@ -9,20 +9,33 @@ if (puppeteer.use && !puppeteer.pluginNames?.includes('stealth')) {
     puppeteer.use(StealthPlugin());
 }
 
+function useHeadlessBrowser() {
+    return process.env.SCRAPER_HEADLESS !== 'false';
+}
+
+function useSharedBrowserProfile() {
+    return process.env.SCRAPER_USE_SHARED_PROFILE === 'true';
+}
+
 async function launchScraperBrowser() {
     const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
     const chromePath = process.env.CHROME_EXECUTABLE_PATH || (isCloud ? '/usr/bin/google-chrome' : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
-    
-    const userDataDir = path.join(process.cwd(), 'chrome-profile-shared');
-    if (!fs.existsSync(userDataDir)) fs.mkdirSync(userDataDir, { recursive: true });
+    const shouldUseSharedProfile = useSharedBrowserProfile();
+    const userDataDir = shouldUseSharedProfile ? path.join(process.cwd(), 'chrome-profile-shared') : undefined;
+    if (userDataDir && !fs.existsSync(userDataDir)) fs.mkdirSync(userDataDir, { recursive: true });
 
     const args = [
         '--no-sandbox', 
         '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
         '--disable-blink-features=AutomationControlled',
         '--disable-infobars',
+        '--disable-popup-blocking',
+        '--disable-notifications',
+        '--no-first-run',
+        '--no-default-browser-check',
         '--window-size=1920,1080',
-        !isCloud ? `--profile-directory=${process.env.CHROME_PROFILE_NAME || 'Default'}` : '',
+        shouldUseSharedProfile && !isCloud ? `--profile-directory=${process.env.CHROME_PROFILE_NAME || 'Default'}` : '',
     ];
 
     // Support for Dynamic Proxies
@@ -30,12 +43,15 @@ async function launchScraperBrowser() {
         args.push(`--proxy-server=${process.env.PROXY_SERVER}`);
     }
 
-    const browser = await puppeteer.launch({
+    const launchOptions = {
         executablePath: chromePath,
-        userDataDir: userDataDir,
-        headless: isCloud ? 'new' : false,
+        headless: useHeadlessBrowser() ? 'new' : false,
         args: args.filter(Boolean),
-    });
+        defaultViewport: { width: 1365, height: 900 },
+    };
+    if (userDataDir) launchOptions.userDataDir = userDataDir;
+
+    const browser = await puppeteer.launch(launchOptions);
 
     return { browser, tempDir: null };
 }
@@ -131,7 +147,13 @@ async function checkAndHandleCaptcha(page, platform) {
     if (isCaptcha) {
         console.log(`[!!!] BLOCK DETECTED on ${platform}. URL: ${page.url()}`);
         const isCloud = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_STATIC_URL || !!process.env.VERCEL;
-        if (!isCloud) { try { await page.bringToFront(); } catch (e) {} }
+        const canUseManualCaptcha = !isCloud && !useHeadlessBrowser();
+        if (!canUseManualCaptcha) {
+            console.log(`[Block] ${platform} is blocked and the scraper is running headless; skipping manual captcha wait.`);
+            return true;
+        }
+
+        try { await page.bringToFront(); } catch (e) {}
         console.log(`[Wait] Waiting for manual captcha resolution on ${platform}...`);
         try {
             // Wait for the URL to change or the body text to change (indicating success)
@@ -152,10 +174,10 @@ async function checkAndHandleCaptcha(page, platform) {
             
             // Give it a moment to settle after manual resolution
             await new Promise(r => setTimeout(r, 2000));
-            return true;
+            return false;
         } catch (e) { 
             console.log(`[Captcha] Wait finished or failed: ${e.message}`);
-            return false; 
+            return true; 
         }
     }
     return false;
@@ -195,6 +217,42 @@ async function scrapeEbay(title) {
 
     const appId = process.env.EBAY_APP_ID?.trim();
     const isSandbox = appId?.includes('-SBX-');
+    const token = await getEbayToken();
+
+    if (token) {
+        console.log(`[eBay] Using official ${isSandbox ? 'Sandbox' : 'Production'} Browse API...`);
+        const browseUrl = isSandbox
+            ? 'https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search'
+            : 'https://api.ebay.com/buy/browse/v1/item_summary/search';
+
+        try {
+            const response = await axios.get(browseUrl, {
+                timeout: 15000,
+                params: {
+                    q: searchTerm,
+                    limit: 10,
+                    fieldgroups: 'EXTENDED'
+                },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+                }
+            });
+
+            const browseItems = (response.data.itemSummaries || []).map(item => ({
+                title: item.title,
+                price: parseFloat(item.price?.value),
+                image: item.image?.imageUrl || item.thumbnailImages?.[0]?.imageUrl || "",
+                url: item.itemWebUrl
+            })).filter(item => item.title && item.price > 0 && item.url);
+
+            if (browseItems.length > 0) return browseItems;
+            console.log('[eBay Browse API] No items found, trying Finding API...');
+        } catch (error) {
+            console.error('[eBay Browse API] Search Error:', error.response?.data || error.message);
+        }
+    }
 
     // Try eBay API first (Finding API uses SECURITY-APPNAME which is the App ID)
     if (appId) {
@@ -205,14 +263,22 @@ async function scrapeEbay(title) {
 
         try {
             const response = await axios.get(searchUrl, {
+                timeout: 15000,
                 params: {
                     'OPERATION-NAME': 'findItemsByKeywords',
                     'SERVICE-VERSION': '1.0.0',
                     'SECURITY-APPNAME': appId,
                     'RESPONSE-DATA-FORMAT': 'JSON',
+                    'REST-PAYLOAD': '',
+                    'GLOBAL-ID': 'EBAY-US',
                     'keywords': searchTerm,
                     'paginationInput.entriesPerPage': 10,
                     'outputSelector': 'PictureURLLarge'
+                },
+                headers: {
+                    'X-EBAY-SOA-SECURITY-APPNAME': appId,
+                    'X-EBAY-SOA-OPERATION-NAME': 'findItemsByKeywords',
+                    'X-EBAY-SOA-RESPONSE-DATA-FORMAT': 'JSON'
                 }
             });
 
@@ -223,29 +289,51 @@ async function scrapeEbay(title) {
                     price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
                     image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
                     url: item.viewItemURL?.[0]
-                })).filter(i => i.price > 0);
+                })).filter(i => i.title && i.price > 0 && i.url);
             } else {
                 console.log('[eBay API] No items found in API response, falling back to scraper...');
             }
         } catch (error) {
-            console.error('[eBay API] Search Error:', error.message);
+            console.error('[eBay API] Search Error:', error.response?.data || error.message);
         }
     }
 
     // Fallback to Puppeteer Scraper
     console.log('[eBay] Falling back to Puppeteer Scraper...');
-    const { browser, tempDir } = await launchScraperBrowser();
+    const { browser } = await launchScraperBrowser();
     try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        await page.goto(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_ipg=60&_blrs=recall_filtering`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const page = await preparePage(browser);
+        const url = new URL('https://www.ebay.com/sch/i.html');
+        url.searchParams.set('_nkw', searchTerm);
+        url.searchParams.set('_ipg', '60');
+        url.searchParams.set('_sop', '15');
+        url.searchParams.set('_blrs', 'recall_filtering');
+        url.searchParams.set('_stpos', '10001');
+        url.searchParams.set('_fcid', '1');
+
+        await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 45000 });
         
-        await new Promise(r => setTimeout(r, 1500));
-        try { await checkAndHandleCaptcha(page, 'eBay'); } catch (e) {}
+        await new Promise(r => setTimeout(r, 2500));
+        const blocked = await checkAndHandleCaptcha(page, 'eBay').catch(() => false);
+        if (blocked) return [];
+
+        try {
+            await page.waitForSelector('.srp-results, .s-item, .s-card', { timeout: 12000 });
+        } catch (e) {
+            console.log('[eBay] Result selector not found before extraction.');
+        }
         
         const results = await page.evaluate(() => {
-            const cards = Array.from(document.querySelectorAll('.s-item, .s-card, .srp-results .s-item, .srp-results .s-card, [class*="s-item"], [class*="s-card"]'));
+            const cards = Array.from(document.querySelectorAll('.srp-results .s-item, .srp-results .s-card, .s-item, .s-card'));
+            const normalizeImage = (card) => {
+                const img = card.querySelector('.s-item__image-img, .s-card__image img, img');
+                return img?.src || img?.getAttribute('data-src') || "";
+            };
+
             return cards.map(card => {
+                const text = card.innerText || "";
+                if (text.includes('Shop on eBay') || text.includes('Sponsored') || card.classList.contains('s-item--placeholder')) return null;
+
                 const titleEl = card.querySelector('.s-item__title, .s-card__title, .su-styled-text.primary, h3');
                 const priceEl = card.querySelector('.s-item__price, .s-card__price, [class*="price"]');
                 const linkEl = card.querySelector('.s-item__link, .s-card__link, a');
@@ -256,20 +344,20 @@ async function scrapeEbay(title) {
                         return { 
                             title: titleEl.innerText.trim().replace(/\nOpens in a new window or tab/i, ''), 
                             price: parseFloat(priceMatch[0]), 
-                            image: card.querySelector('img')?.src || "", 
-                            url: linkEl.href 
+                            image: normalizeImage(card), 
+                            url: linkEl.href?.split('?')[0] || linkEl.href 
                         };
                     }
                 }
                 return null;
-            }).filter(i => i && i.price > 0 && !i.title.toLowerCase().includes('shop on ebay') && i.title !== "");
+            }).filter(i => i && i.title && i.price > 0 && i.url && !i.title.toLowerCase().includes('shop on ebay'));
         });
-        await browser.close();
         return results.slice(0, 10);
     } catch (e) { 
         console.error(`[eBay] Scraper Error: ${e.message}`);
-        if (browser) await browser.close(); 
         return []; 
+    } finally {
+        if (browser) await browser.close();
     }
 }
 
@@ -283,7 +371,10 @@ async function scrapeAmazon(title) {
         await page.goto(`https://www.amazon.com/s?k=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
         await new Promise(r => setTimeout(r, 1000));
-        try { await checkAndHandleCaptcha(page, 'Amazon'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'Amazon').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
         
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[data-component-type="s-search-result"]'));
@@ -320,7 +411,10 @@ async function scrapeAliExpress(title) {
         await page.goto(`https://www.aliexpress.com/w/wholesale-${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
         await new Promise(r => setTimeout(r, 2000));
-        try { await checkAndHandleCaptcha(page, 'AliExpress'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'AliExpress').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
 
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[class*="search-item-card"], [class*="list--item"], [class*="multi--content"], [class*="ItemCard"]'));
@@ -356,7 +450,10 @@ async function scrapeWalmart(title) {
         await page.goto(`https://www.walmart.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         await new Promise(r => setTimeout(r, 5000));
-        try { await checkAndHandleCaptcha(page, 'Walmart'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'Walmart').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
         
         console.log('[Walmart] Scrolling to load items...');
         await autoScroll(page);
@@ -392,7 +489,10 @@ async function scrapeEtsy(title) {
         await page.goto(`https://www.etsy.com/search?q=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         await new Promise(r => setTimeout(r, 5000));
-        try { await checkAndHandleCaptcha(page, 'Etsy'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'Etsy').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
         
         console.log('[Etsy] Scrolling to load items...');
         await autoScroll(page);
@@ -423,7 +523,10 @@ async function scrapeCostco(title) {
         await page.goto(`https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(searchTerm)}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         await new Promise(r => setTimeout(r, 6000));
-        try { await checkAndHandleCaptcha(page, 'Costco'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'Costco').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
 
         console.log('[Costco] Scrolling to load items...');
         await autoScroll(page);
@@ -454,7 +557,10 @@ async function scrapeTemu(title) {
         await page.goto(`https://www.temu.com/search_result.html?search_key=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
         
         await new Promise(r => setTimeout(r, 5000));
-        try { await checkAndHandleCaptcha(page, 'Temu'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'Temu').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
 
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[data-goods-id], .goods-item, [class*="goods-item"]'));
@@ -481,7 +587,10 @@ async function scrapeTarget(title) {
         const page = await preparePage(browser);
         await page.goto(`https://www.target.com/s?searchTerm=${encodeURIComponent(searchTerm)}`, { waitUntil: 'load', timeout: 60000 });
         await new Promise(r => setTimeout(r, 4000));
-        try { await checkAndHandleCaptcha(page, 'Target'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'Target').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
 
         const results = await page.evaluate(() => {
             const cards = Array.from(document.querySelectorAll('[data-test="@web/site-top-of-funnel/ProductCardWrapper"]'));
@@ -516,7 +625,10 @@ async function scrapeBestBuy(title) {
         }
 
         await new Promise(r => setTimeout(r, 3000));
-        try { await checkAndHandleCaptcha(page, 'BestBuy'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'BestBuy').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
 
         console.log('[Best Buy] Scrolling slowly to trigger lazy-load...');
         // Slower auto-scroll for Best Buy's heavy scripts
@@ -606,26 +718,49 @@ async function fetchEbayMarketData(title) {
         }
 
         // 2. Fetch Sold Items via Finding API (Only method for historical data)
-        const soldRes = await axios.get(findingBaseUrl, {
-            params: { 
-                'OPERATION-NAME': 'findCompletedItems',
-                'SERVICE-VERSION': '1.0.0',
-                'SECURITY-APPNAME': appId,
-                'RESPONSE-DATA-FORMAT': 'JSON',
-                'keywords': searchTerm,
-                'itemFilter(0).name': 'SoldItemsOnly',
-                'itemFilter(0).value': 'true',
-                'paginationInput.entriesPerPage': 10
-            }
-        });
+        let soldItems = [];
+        try {
+            const soldRes = await axios.get(findingBaseUrl, {
+                params: { 
+                    'OPERATION-NAME': 'findCompletedItems',
+                    'SERVICE-VERSION': '1.0.0',
+                    'SECURITY-APPNAME': appId,
+                    'RESPONSE-DATA-FORMAT': 'JSON',
+                    'keywords': searchTerm,
+                    'itemFilter(0).name': 'SoldItemsOnly',
+                    'itemFilter(0).value': 'true',
+                    'paginationInput.entriesPerPage': 10
+                }
+            });
 
-        const soldItems = (soldRes.data.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || []).map(item => ({
-            title: item.title?.[0],
-            price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
-            image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
-            url: item.viewItemURL?.[0],
-            status: 'sold'
-        }));
+            soldItems = (soldRes.data.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item || []).map(item => ({
+                title: item.title?.[0],
+                price: parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__),
+                image: item.pictureURLLarge?.[0] || item.galleryURL?.[0],
+                url: item.viewItemURL?.[0],
+                status: 'sold'
+            }));
+        } catch (soldError) {
+            console.error('[eBay Sold API] Error:', soldError.response?.data || soldError.message);
+        }
+
+        if (activeItems.length === 0) {
+            try {
+                console.log('[eBay Analytics] Falling back to browser scrape for active items...');
+                activeItems = await scrapeEbay(searchTerm);
+            } catch (scrapeError) {
+                console.error('[eBay Analytics] Active scrape fallback failed:', scrapeError.message);
+            }
+        }
+
+        if (soldItems.length === 0) {
+            try {
+                console.log('[eBay Analytics] Falling back to browser scrape for sold items...');
+                soldItems = await scrapeEbaySoldListings(searchTerm);
+            } catch (scrapeError) {
+                console.error('[eBay Analytics] Sold scrape fallback failed:', scrapeError.message);
+            }
+        }
 
         return { activeItems, soldItems };
     } catch (error) {
@@ -658,7 +793,10 @@ async function scrapeEbaySoldListings(title) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         await new Promise(r => setTimeout(r, 5000));
-        try { await checkAndHandleCaptcha(page, 'eBay'); } catch (e) {}
+        if (await checkAndHandleCaptcha(page, 'eBay').catch(() => false)) {
+            await browser.close();
+            return [];
+        }
         
         await autoScroll(page);
 
@@ -674,13 +812,15 @@ async function scrapeEbaySoldListings(title) {
                     const priceText = priceEl.innerText;
                     const m = priceText.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
                     if (m) {
+                        const imageEl = card.querySelector('img');
                         return { 
                             title: titleEl.innerText.trim().replace(/\nOpens in a new window or tab/i, ''), 
                             price: parseFloat(m[0]), 
                             seller: sellerEl ? sellerEl.innerText.split('(')[0].trim() : 'Unknown', 
                             condition: 'Used', 
                             shipping: 0,
-                            url: linkEl ? linkEl.href : ""
+                            url: linkEl ? linkEl.href : "",
+                            image: imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || imageEl.getAttribute('src')) : ""
                         };
                     }
                 }
